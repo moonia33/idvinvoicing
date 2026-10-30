@@ -1,3 +1,5 @@
+from datetime import date
+
 from ninja import Schema
 
 from apps.tenancy.models import SellerProfile
@@ -46,6 +48,7 @@ class ProfileIn(Schema):
     insured_elsewhere: bool = False
     pension_accrual: bool = False
     vsd_holiday: bool = False
+    activity_start: date | None = None
 
 
 class ProfileOut(ProfileIn):

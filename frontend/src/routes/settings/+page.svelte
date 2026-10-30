@@ -25,7 +25,8 @@
 		deductions_method: 'pct30',
 		insured_elsewhere: false,
 		pension_accrual: false,
-		vsd_holiday: false
+		vsd_holiday: false,
+		activity_start: null as string | null
 	});
 	let smtp = $state({
 		host: '',
@@ -141,6 +142,13 @@
 							</Select.Content>
 						</Select.Root>
 					</div>
+				</div>
+				<div class="max-w-xs space-y-1.5">
+					<Label>Veiklos pradžios data</Label>
+					<Input type="date" bind:value={profile.activity_start} />
+					<p class="text-xs text-muted-foreground">
+						Nuo jos pradedama skaičiuoti minimali VSD/PSD bazė (MMA × veiklos mėn.)
+					</p>
 				</div>
 				<label class="flex items-center gap-2 text-sm">
 					<input type="checkbox" bind:checked={profile.insured_elsewhere} />

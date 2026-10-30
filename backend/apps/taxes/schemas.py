@@ -38,6 +38,7 @@ class MonthRowOut(Schema):
 class TaxBreakdownOut(Schema):
     year: int
     months: int
+    active_months: int
     income_total: Decimal
     expenses_total: Decimal
     deductible_total: Decimal

@@ -168,6 +168,32 @@ def test_vat_threshold_warning(api_client, tenant):
     assert any("45 000" in w for w in s["warnings"])
 
 
+def test_activity_start_prorates_minimum(api_client, tenant):
+    api_client.put(
+        "/api/v1/profile",
+        {"seller_name": "Tomas IV", "activity_start": "2025-09-15"},
+        content_type="application/json",
+    )
+    paid_invoice(api_client, "3000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    # veikla nuo rugsėjo -> min. bazė 4 x MMA (rugs., spal., lapkr., gruod.)
+    assert s["active_months"] == 4
+    assert s["vsd"]["base"] == "4152.00"
+    assert "4 x MMA" in s["vsd"]["note"]
+    # mėnesių lentelė: mėn. iki rugsėjo -> VSD/PSD 0
+    jan = s["monthly"][0]
+    assert jan["vsd"] == "0.00" and jan["psd"] == "0.00"
+    sep = s["monthly"][8]
+    assert sep["psd"] == "72.45"  # 6.98% x 1038
+
+
+def test_no_activity_start_uses_full_window(api_client, tenant):
+    paid_invoice(api_client, "3000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025&months=3").json()
+    assert s["active_months"] == 3
+    assert s["vsd"]["base"] == "3114.00"
+
+
 def test_tax_payments_reduce_remaining(api_client, tenant):
     paid_invoice(api_client, "3000.00")
     post_json(

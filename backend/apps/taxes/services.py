@@ -43,6 +43,7 @@ class MonthRow:
 class TaxBreakdown:
     year: int
     months: int
+    active_months: int
     income_total: Decimal
     expenses_total: Decimal
     deductible_total: Decimal
@@ -156,6 +157,20 @@ def compute_taxes(
     if vsd_relief:
         warnings.append("Pirmoji veikla: VSD atostogos – įmokos nemokamos iki 12 mėn.")
 
+    # Kiek langinio lango mėnesių veikla realiai vyko (minimumas – tik už juos)
+    start = getattr(profile, "activity_start", None)
+    if start is None or start.year < year:
+        active_months = months
+    elif start.year == year:
+        active_months = max(0, months - start.month + 1)
+    else:
+        active_months = 0
+    if start is not None and active_months < months:
+        warnings.append(
+            f"Minimali bazė proporcinga veiklos laikui: {active_months} mėn. "
+            f"(veikla nuo {start:%Y-%m-%d})."
+        )
+
     applied_pct30 = _q(income * rule.fixed_deduction_rate)
     applied = applied_pct30 if method == SellerProfile.DeductionsMethod.PCT30 else deductible
     recommended = (
@@ -172,8 +187,10 @@ def compute_taxes(
         )
     gpm = _gpm(profit, rule)
     vsd_rate = rule.vsd_rate_pension if pension else rule.vsd_rate
-    vsd = _social(profit, vsd_rate, rule, months, exempt=vsd_relief, no_minimum=insured)
-    psd = _social(profit, rule.psd_rate, rule, months, no_minimum=insured or psd_paid_elsewhere)
+    vsd = _social(profit, vsd_rate, rule, active_months, exempt=vsd_relief, no_minimum=insured)
+    psd = _social(
+        profit, rule.psd_rate, rule, active_months, no_minimum=insured or psd_paid_elsewhere
+    )
 
     for line, kind in ((gpm, "gpm"), (vsd, "vsd"), (psd, "psd")):
         line.paid = _tax_paid(tenant, kind, year)
@@ -190,7 +207,8 @@ def compute_taxes(
             else s["deductible_total"]
         )
         m_profit = _q(max(m_income - m_ded, Decimal("0")))
-        if vsd_relief:
+        m_active = start is None or (year, m) >= (start.year, start.month)
+        if vsd_relief or not m_active:
             vsd_m = Decimal("0")
         elif insured:
             vsd_m = _q(m_profit * rule.social_base_share * vsd_rate)
@@ -201,7 +219,9 @@ def compute_taxes(
                     vsd_rate * rule.mma_monthly,
                 )
             )
-        if insured:
+        if not m_active:
+            psd_m = Decimal("0")
+        elif insured:
             psd_m = _q(m_profit * rule.social_base_share * rule.psd_rate)
         else:
             psd_m = _q(rule.psd_rate * rule.mma_monthly)
@@ -213,6 +233,7 @@ def compute_taxes(
     return TaxBreakdown(
         year=year,
         months=months,
+        active_months=active_months,
         income_total=income,
         expenses_total=expenses,
         deductible_total=deductible,
