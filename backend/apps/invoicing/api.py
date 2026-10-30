@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 from ninja import Router, Status
 from ninja.errors import HttpError
 
+from apps.core.models import DocumentSequence
 from apps.invoicing.models import Client, Invoice, RecurringTemplate, Service
 from apps.invoicing.schemas import (
     ClientIn,
@@ -125,6 +126,20 @@ def delete_service(request, service_id: int):
 
 
 # --- Invoices ---
+
+
+@router.get("/invoices/next-number", response=dict)
+def next_number_preview(request, year: int | None = None):
+    """Numatomas kitas sąskaitos numeris (peržiūrai – nesunaudoja sekos)."""
+    tenant = current_tenant(request)
+    profile = getattr(tenant, "profile", None)
+    series = profile.invoice_series if profile else "SF"
+    year = year or date.today().year
+    seq = DocumentSequence.objects.filter(
+        tenant=tenant, kind="invoice", series=series, year=year
+    ).first()
+    n = (seq.last_number if seq else 0) + 1
+    return {"full_number": f"{series}-{year}-{n:04d}", "series": series, "year": year}
 
 
 @router.get("/invoices", response=list[InvoiceOut])

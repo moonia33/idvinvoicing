@@ -20,6 +20,8 @@ export const STATUS_VARIANTS: Record<string, 'secondary' | 'default' | 'outline'
 		cancelled: 'destructive'
 	};
 
+export const UNITS = ['vnt.', 'val.', 'mėn.', 'd.', 'kt.', 'm', 'm²', 'kg'] as const;
+
 export const FREQ_LABELS: Record<string, string> = {
 	monthly: 'Kas mėnesį',
 	quarterly: 'Kas ketvirtį',
