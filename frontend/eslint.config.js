@@ -34,6 +34,13 @@ export default defineConfig(
 		}
 	},
 	{
+		// shadcn-svelte generuoti komponentai – navigaciją sprendžia kvietėjas
+		files: ['src/lib/components/ui/**'],
+		rules: {
+			'svelte/no-navigation-without-resolve': 'off'
+		}
+	},
+	{
 		// Override or add rule settings here, such as:
 		// 'svelte/button-has-type': 'error'
 		rules: {}

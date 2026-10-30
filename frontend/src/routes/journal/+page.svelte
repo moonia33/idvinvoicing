@@ -1,0 +1,244 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { api } from '#lib/api';
+	import type { Journal, LedgerEntry } from '#lib/types';
+	import { fmtEur } from '#lib/format';
+	import { Button } from '#lib/components/ui/button';
+	import { Badge } from '#lib/components/ui/badge';
+	import { Input } from '#lib/components/ui/input';
+	import { Label } from '#lib/components/ui/label';
+	import * as Card from '#lib/components/ui/card';
+	import * as Table from '#lib/components/ui/table';
+	import * as Select from '#lib/components/ui/select';
+	import * as Dialog from '#lib/components/ui/dialog';
+	import { Trash2 } from '@lucide/svelte';
+
+	const now = new Date();
+	let year = $state(now.getFullYear());
+	let month = $state(now.getMonth() + 1);
+	let journal = $state<Journal | null>(null);
+	let entries = $state<LedgerEntry[]>([]);
+
+	let open = $state(false);
+	let form = $state({
+		kind: 'expense',
+		category_id: '',
+		document_date: now.toISOString().slice(0, 10),
+		counterparty: '',
+		description: '',
+		currency: 'EUR',
+		amount_original: '',
+		exchange_rate: '1',
+		deductible: true
+	});
+
+	async function load() {
+		[journal, entries] = await Promise.all([
+			api<Journal>(`/ledger/journal?year=${year}&month=${month}`),
+			api<LedgerEntry[]>(`/ledger/entries?year=${year}`)
+		]);
+	}
+
+	onMount(load);
+
+	async function saveEntry(e: SubmitEvent) {
+		e.preventDefault();
+		await api('/ledger/entries', {
+			method: 'POST',
+			body: {
+				...form,
+				category_id: form.category_id ? Number(form.category_id) : null,
+				paid_date: form.document_date
+			}
+		});
+		open = false;
+		await load();
+	}
+
+	async function removeEntry(en: LedgerEntry) {
+		if (!confirm('Ištrinti įrašą?')) return;
+		await api(`/ledger/entries/${en.id}`, { method: 'DELETE' });
+		await load();
+	}
+</script>
+
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+	<h1 class="text-2xl font-semibold">Pajamų-išlaidų žurnalas</h1>
+	<div class="flex items-center gap-2">
+		<Input type="number" class="w-24" bind:value={year} onchange={load} min="2000" />
+		<Select.Root
+			type="single"
+			value={String(month)}
+			onValueChange={(v) => {
+				month = Number(v);
+				load();
+			}}
+		>
+			<Select.Trigger class="w-32">{month} mėn.</Select.Trigger>
+			<Select.Content>
+				{#each Array.from({ length: 12 }, (_, i) => i + 1) as m (m)}
+					<Select.Item value={String(m)} label="{m} mėn.">{m} mėn.</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
+		<Button onclick={() => (open = true)}>Naujas įrašas</Button>
+	</div>
+</div>
+
+{#if journal}
+	<div class="mb-4 grid gap-3 sm:grid-cols-4">
+		<Card.Root
+			><Card.Content class="pt-4"
+				><div class="text-xs text-muted-foreground">Pajamos</div>
+				<div class="text-xl font-semibold">{fmtEur(journal.income_total)}</div></Card.Content
+			></Card.Root
+		>
+		<Card.Root
+			><Card.Content class="pt-4"
+				><div class="text-xs text-muted-foreground">Išlaidos</div>
+				<div class="text-xl font-semibold">{fmtEur(journal.expense_total)}</div></Card.Content
+			></Card.Root
+		>
+		<Card.Root
+			><Card.Content class="pt-4"
+				><div class="text-xs text-muted-foreground">Atskaitymai</div>
+				<div class="text-xl font-semibold">{fmtEur(journal.deductible_total)}</div></Card.Content
+			></Card.Root
+		>
+		<Card.Root
+			><Card.Content class="pt-4"
+				><div class="text-xs text-muted-foreground">Rezultatas</div>
+				<div class="text-xl font-semibold">{fmtEur(journal.net)}</div></Card.Content
+			></Card.Root
+		>
+	</div>
+{/if}
+
+<Card.Root class="mb-6">
+	<Table.Root>
+		<Table.Header>
+			<Table.Row>
+				<Table.Head>Data</Table.Head><Table.Head>Tipas</Table.Head><Table.Head>Aprašymas</Table.Head
+				>
+				<Table.Head>Kontragentas</Table.Head><Table.Head class="text-right">Suma</Table.Head>
+			</Table.Row>
+		</Table.Header>
+		<Table.Body>
+			{#each journal?.rows ?? [] as r (r.date + r.description)}
+				<Table.Row>
+					<Table.Cell>{r.date}</Table.Cell>
+					<Table.Cell
+						><Badge variant={r.kind === 'income' ? 'default' : 'secondary'}
+							>{r.kind === 'income' ? 'Pajamos' : 'Išlaidos'}</Badge
+						></Table.Cell
+					>
+					<Table.Cell>{r.description} {r.deductible ? '·atsk.' : ''}</Table.Cell>
+					<Table.Cell>{r.counterparty}</Table.Cell>
+					<Table.Cell class="text-right">{fmtEur(r.amount)}</Table.Cell>
+				</Table.Row>
+			{/each}
+		</Table.Body>
+	</Table.Root>
+</Card.Root>
+
+<Card.Root>
+	<Card.Header><Card.Title class="text-base">Metų įrašai</Card.Title></Card.Header>
+	<Table.Root>
+		<Table.Header>
+			<Table.Row>
+				<Table.Head>Data</Table.Head><Table.Head>Tipas</Table.Head><Table.Head
+					>Kontragentas</Table.Head
+				>
+				<Table.Head>Valiuta</Table.Head><Table.Head class="text-right">Originalu</Table.Head>
+				<Table.Head class="text-right">EUR</Table.Head><Table.Head class="w-10"></Table.Head>
+			</Table.Row>
+		</Table.Header>
+		<Table.Body>
+			{#each entries as en (en.id)}
+				<Table.Row>
+					<Table.Cell>{en.document_date}</Table.Cell>
+					<Table.Cell>{en.kind === 'income' ? 'Paj.' : 'Išl.'}</Table.Cell>
+					<Table.Cell>{en.counterparty}</Table.Cell>
+					<Table.Cell
+						>{en.currency}{en.currency === 'PLN' ? ` @${en.exchange_rate}` : ''}</Table.Cell
+					>
+					<Table.Cell class="text-right">{en.amount_original}</Table.Cell>
+					<Table.Cell class="text-right">{fmtEur(en.amount_eur)}</Table.Cell>
+					<Table.Cell
+						><Button variant="ghost" size="icon" onclick={() => removeEntry(en)}
+							><Trash2 class="size-4" /></Button
+						></Table.Cell
+					>
+				</Table.Row>
+			{/each}
+		</Table.Body>
+	</Table.Root>
+</Card.Root>
+
+<Dialog.Root bind:open>
+	<Dialog.Content>
+		<Dialog.Header><Dialog.Title>Naujas žurnalo įrašas</Dialog.Title></Dialog.Header>
+		<form onsubmit={saveEntry} class="space-y-3">
+			<div class="grid grid-cols-2 gap-3">
+				<div class="space-y-1.5">
+					<Label>Tipas</Label>
+					<Select.Root type="single" bind:value={form.kind}>
+						<Select.Trigger>{form.kind === 'income' ? 'Pajamos' : 'Išlaidos'}</Select.Trigger>
+						<Select.Content>
+							<Select.Item value="expense" label="Išlaidos">Išlaidos</Select.Item>
+							<Select.Item value="income" label="Pajamos">Pajamos</Select.Item>
+						</Select.Content>
+					</Select.Root>
+				</div>
+				<div class="space-y-1.5">
+					<Label>Data *</Label><Input type="date" bind:value={form.document_date} required />
+				</div>
+			</div>
+			<div class="space-y-1.5">
+				<Label>Kontragentas</Label><Input bind:value={form.counterparty} />
+			</div>
+			<div class="space-y-1.5"><Label>Aprašymas</Label><Input bind:value={form.description} /></div>
+			<div class="grid grid-cols-3 gap-3">
+				<div class="space-y-1.5">
+					<Label>Valiuta</Label>
+					<Select.Root type="single" bind:value={form.currency}>
+						<Select.Trigger>{form.currency}</Select.Trigger>
+						<Select.Content>
+							<Select.Item value="EUR" label="EUR">EUR</Select.Item>
+							<Select.Item value="PLN" label="PLN">PLN</Select.Item>
+						</Select.Content>
+					</Select.Root>
+				</div>
+				<div class="space-y-1.5">
+					<Label>Suma *</Label><Input
+						type="number"
+						step="0.01"
+						min="0.01"
+						bind:value={form.amount_original}
+						required
+					/>
+				</div>
+				{#if form.currency === 'PLN'}
+					<div class="space-y-1.5">
+						<Label>Kursas PLN→EUR *</Label><Input
+							type="number"
+							step="0.0001"
+							min="0.0001"
+							bind:value={form.exchange_rate}
+							required
+						/>
+					</div>
+				{/if}
+			</div>
+			{#if form.currency === 'PLN' && form.amount_original}
+				<p class="text-sm text-muted-foreground">
+					≈ {fmtEur(Number(form.amount_original) * Number(form.exchange_rate))} EUR
+				</p>
+			{/if}
+			<label class="flex items-center gap-2 text-sm">
+				<input type="checkbox" bind:checked={form.deductible} /> Leidžiami atskaitymai
+			</label>
+			<Dialog.Footer><Button type="submit">Išsaugoti</Button></Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
