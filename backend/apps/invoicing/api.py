@@ -1,0 +1,194 @@
+from datetime import date, timedelta
+
+from django.db import transaction
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.template.loader import render_to_string
+from ninja import Router, Status
+from ninja.errors import HttpError
+
+from apps.core.numbering import next_document_number
+from apps.invoicing.models import Client, Invoice
+from apps.invoicing.schemas import (
+    ClientIn,
+    ClientOut,
+    InvoiceIn,
+    InvoiceOut,
+    IssueIn,
+    PaymentIn,
+    PaymentOut,
+)
+from apps.tenancy.api import current_tenant
+from apps.tenancy.models import Tenant
+
+router = Router()
+
+
+def get_client(tenant: Tenant, client_id: int) -> Client:
+    return get_object_or_404(Client, id=client_id, tenant=tenant)
+
+
+def get_invoice(tenant: Tenant, invoice_id: int) -> Invoice:
+    return get_object_or_404(
+        Invoice.objects.select_related("client").prefetch_related("lines", "payments"),
+        id=invoice_id,
+        tenant=tenant,
+    )
+
+
+# --- Clients ---
+
+
+@router.get("/clients", response=list[ClientOut])
+def list_clients(request):
+    return Client.objects.filter(tenant=current_tenant(request))
+
+
+@router.post("/clients", response={201: ClientOut})
+def create_client(request, data: ClientIn):
+    client = Client.objects.create(tenant=current_tenant(request), **data.model_dump())
+    return Status(201, client)
+
+
+@router.get("/clients/{client_id}", response=ClientOut)
+def get_client_view(request, client_id: int):
+    return get_client(current_tenant(request), client_id)
+
+
+@router.put("/clients/{client_id}", response=ClientOut)
+def update_client(request, client_id: int, data: ClientIn):
+    client = get_client(current_tenant(request), client_id)
+    for key, value in data.model_dump().items():
+        setattr(client, key, value)
+    client.save()
+    return client
+
+
+@router.delete("/clients/{client_id}", response={204: None})
+def delete_client(request, client_id: int):
+    get_client(current_tenant(request), client_id).delete()
+    return Status(204, None)
+
+
+# --- Invoices ---
+
+
+@router.get("/invoices", response=list[InvoiceOut])
+def list_invoices(request, status: str | None = None, client_id: int | None = None):
+    qs = (
+        Invoice.objects.filter(tenant=current_tenant(request))
+        .select_related("client")
+        .prefetch_related("lines", "payments")
+    )
+    if status:
+        qs = qs.filter(status=status)
+    if client_id:
+        qs = qs.filter(client_id=client_id)
+    return qs
+
+
+@router.post("/invoices", response={201: InvoiceOut})
+def create_invoice(request, data: InvoiceIn):
+    tenant = current_tenant(request)
+    client = get_client(tenant, data.client_id)
+    if not data.lines:
+        raise HttpError(400, "Sąskaita turi turėti bent vieną eilutę")
+    with transaction.atomic():
+        invoice = Invoice.objects.create(
+            tenant=tenant,
+            client=client,
+            series=getattr(getattr(tenant, "profile", None), "invoice_series", None) or "SF",
+            due_date=data.due_date,
+            notes=data.notes,
+        )
+        for i, line in enumerate(data.lines):
+            invoice.lines.create(**line.model_dump(), order=i)
+        invoice.recalc_total()
+        invoice.save(update_fields=["total"])
+    return Status(201, get_invoice(tenant, invoice.id))
+
+
+@router.get("/invoices/{invoice_id}", response=InvoiceOut)
+def get_invoice_view(request, invoice_id: int):
+    return get_invoice(current_tenant(request), invoice_id)
+
+
+@router.put("/invoices/{invoice_id}", response=InvoiceOut)
+def update_invoice(request, invoice_id: int, data: InvoiceIn):
+    tenant = current_tenant(request)
+    invoice = get_invoice(tenant, invoice_id)
+    if invoice.status != Invoice.Status.DRAFT:
+        raise HttpError(400, "Redaguoti galima tik juodraštį")
+    if not data.lines:
+        raise HttpError(400, "Sąskaita turi turėti bent vieną eilutę")
+    with transaction.atomic():
+        invoice.client = get_client(tenant, data.client_id)
+        invoice.due_date = data.due_date
+        invoice.notes = data.notes
+        invoice.lines.all().delete()
+        for i, line in enumerate(data.lines):
+            invoice.lines.create(**line.model_dump(), order=i)
+        invoice.recalc_total()
+        invoice.save()
+    return get_invoice(tenant, invoice.id)
+
+
+@router.post("/invoices/{invoice_id}/issue", response=InvoiceOut)
+def issue_invoice(request, invoice_id: int, data: IssueIn):
+    tenant = current_tenant(request)
+    invoice = get_invoice(tenant, invoice_id)
+    if invoice.status != Invoice.Status.DRAFT:
+        raise HttpError(400, "Išrašyti galima tik juodraštį")
+    if not invoice.lines.exists():
+        raise HttpError(400, "Sąskaita neturi eilučių")
+    issue_date = data.issue_date or date.today()
+    with transaction.atomic():
+        invoice.series = data.series or invoice.series
+        invoice.year = issue_date.year
+        invoice.number = next_document_number(tenant, "invoice", invoice.series, issue_date.year)
+        invoice.issue_date = issue_date
+        invoice.due_date = data.due_date or invoice.due_date or issue_date + timedelta(days=14)
+        invoice.status = Invoice.Status.ISSUED
+        invoice.save()
+    return get_invoice(tenant, invoice.id)
+
+
+@router.post("/invoices/{invoice_id}/cancel", response=InvoiceOut)
+def cancel_invoice(request, invoice_id: int):
+    invoice = get_invoice(current_tenant(request), invoice_id)
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise HttpError(400, "Sąskaita jau atšaukta")
+    if invoice.payments.exists():
+        raise HttpError(400, "Negalima atšaukti sąskaitos su mokėjimais")
+    invoice.status = Invoice.Status.CANCELLED
+    invoice.save(update_fields=["status", "updated_at"])
+    return invoice
+
+
+@router.post("/invoices/{invoice_id}/payments", response={201: PaymentOut})
+def add_payment(request, invoice_id: int, data: PaymentIn):
+    invoice = get_invoice(current_tenant(request), invoice_id)
+    if invoice.status in (Invoice.Status.DRAFT, Invoice.Status.CANCELLED):
+        raise HttpError(400, "Mokėjimai galimi tik išrašytai sąskaitai")
+    with transaction.atomic():
+        payment = invoice.payments.create(**data.model_dump())
+        invoice.recalc_status()
+        invoice.save(update_fields=["status", "updated_at"])
+    return Status(201, payment)
+
+
+@router.get("/invoices/{invoice_id}/pdf", response={200: None})
+def invoice_pdf(request, invoice_id: int):
+    from weasyprint import HTML  # lazy: Windows dev be GTK bibliotekų
+
+    tenant = current_tenant(request)
+    invoice = get_invoice(tenant, invoice_id)
+    html = render_to_string(
+        "invoicing/invoice_pdf.html",
+        {"invoice": invoice, "profile": getattr(tenant, "profile", None)},
+    )
+    pdf = HTML(string=html).write_pdf()
+    response = HttpResponse(pdf, content_type="application/pdf")
+    filename = invoice.full_number or f"juodrastis-{invoice.pk}"
+    response["Content-Disposition"] = f'inline; filename="{filename}.pdf"'
+    return response

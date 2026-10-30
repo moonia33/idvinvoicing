@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 10pt; color: #111; }
+  h1 { font-size: 16pt; margin: 0 0 4px; }
+  .muted { color: #555; font-size: 9pt; }
+  table.parties { width: 100%; margin: 18px 0; }
+  table.parties td { width: 50%; vertical-align: top; }
+  .party-label { font-size: 8pt; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+  table.lines { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  table.lines th { border-bottom: 2px solid #333; text-align: left; padding: 6px 4px; font-size: 9pt; }
+  table.lines td { border-bottom: 1px solid #ddd; padding: 6px 4px; }
+  .num { text-align: right; white-space: nowrap; }
+  table.totals { margin-left: auto; margin-top: 8px; }
+  table.totals td { padding: 4px 8px; }
+  .total-row td { border-top: 2px solid #333; font-weight: bold; font-size: 11pt; }
+  .footer { margin-top: 32px; }
+</style>
+</head>
+<body>
+  <h1>Sąskaita faktūra {{ invoice.full_number }}</h1>
+  <p class="muted">
+    Išrašymo data: {{ invoice.issue_date|date:"Y-m-d" }}
+    {% if invoice.due_date %}&nbsp;&nbsp;|&nbsp;&nbsp;Apmokėti iki: {{ invoice.due_date|date:"Y-m-d" }}{% endif %}
+  </p>
+
+  <table class="parties">
+    <tr>
+      <td>
+        <div class="party-label">Pardavėjas</div>
+        {% if profile %}
+          <strong>{{ profile.seller_name }}</strong><br>
+          {% if profile.activity_code %}Veiklos kodas: {{ profile.activity_code }}<br>{% endif %}
+          {% if profile.personal_code %}Asmens kodas: {{ profile.personal_code }}<br>{% endif %}
+          {% if profile.address %}{{ profile.address }}<br>{% endif %}
+          {% if profile.email %}{{ profile.email }}<br>{% endif %}
+          {% if profile.phone %}{{ profile.phone }}{% endif %}
+        {% endif %}
+      </td>
+      <td>
+        <div class="party-label">Pirkėjas</div>
+        <strong>{{ invoice.client.name }}</strong><br>
+        {% if invoice.client.code %}Kodas: {{ invoice.client.code }}<br>{% endif %}
+        {% if invoice.client.vat_code %}PVM kodas: {{ invoice.client.vat_code }}<br>{% endif %}
+        {% if invoice.client.address %}{{ invoice.client.address }}<br>{% endif %}
+        {% if invoice.client.email %}{{ invoice.client.email }}{% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <table class="lines">
+    <thead>
+      <tr>
+        <th>Paslaugos / prekės pavadinimas</th>
+        <th class="num">Kiekis</th>
+        <th>Mato vnt.</th>
+        <th class="num">Kaina, EUR</th>
+        <th class="num">Suma, EUR</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in invoice.lines.all %}
+      <tr>
+        <td>{{ line.description }}</td>
+        <td class="num">{{ line.quantity }}</td>
+        <td>{{ line.unit }}</td>
+        <td class="num">{{ line.unit_price }}</td>
+        <td class="num">{{ line.total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr class="total-row">
+      <td>Iš viso:</td>
+      <td class="num">{{ invoice.total }} EUR</td>
+    </tr>
+  </table>
+
+  {% if invoice.notes %}<p class="muted">{{ invoice.notes }}</p>{% endif %}
+
+  <div class="footer">
+    {% if profile and profile.iban %}
+      <p><strong>Mokėjimo rekvizitai:</strong><br>
+      {% if profile.bank_name %}{{ profile.bank_name }}<br>{% endif %}
+      IBAN: {{ profile.iban }}</p>
+    {% endif %}
+  </div>
+</body>
+</html>
