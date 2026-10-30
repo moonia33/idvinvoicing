@@ -17,6 +17,9 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_DEBUG: "false"
@@ -34,7 +37,10 @@ services:
   qcluster:
     build: ./backend
     restart: unless-stopped
-    command: ["python", "manage.py", "qcluster"]
+    command: >
+      sh -c "until python manage.py migrate --check >/dev/null 2>&1;
+             do echo 'waiting for migrations...'; sleep 3; done;
+             python manage.py qcluster"
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_DEBUG: "false"

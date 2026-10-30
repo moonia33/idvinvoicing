@@ -17,7 +17,9 @@ services:
 
   backend:
     build: ./backend
-    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app
       - backend_venv:/app/.venv
@@ -37,7 +39,10 @@ services:
 
   qcluster:
     build: ./backend
-    command: ["python", "manage.py", "qcluster"]
+    command: >
+      sh -c "until python manage.py migrate --check >/dev/null 2>&1;
+             do echo 'waiting for migrations...'; sleep 3; done;
+             python manage.py qcluster"
     volumes:
       - ./backend:/app
       - backend_venv:/app/.venv
