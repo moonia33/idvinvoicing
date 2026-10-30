@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from apps.invoicing.models import Invoice
 from apps.ledger.models import LedgerEntry
+from apps.purchases.models import Purchase
 from apps.tenancy.models import SellerProfile, Tenant
 
 
@@ -79,6 +80,52 @@ def journal_rows(tenant: Tenant, year: int, month: int) -> list[JournalRow]:
                     amount=inv.total,
                     deductible=False,
                     source="invoice",
+                )
+            )
+
+    if cash:
+        purchase_rows = (
+            Purchase.objects.filter(
+                tenant=tenant,
+                payments__paid_at__year=year,
+                payments__paid_at__month=month,
+            )
+            .select_related("supplier")
+            .distinct()
+        )
+        for pur in purchase_rows:
+            for pp in pur.payments.filter(paid_at__year=year, paid_at__month=month):
+                rows.append(
+                    JournalRow(
+                        date=pp.paid_at,
+                        kind="expense",
+                        description=f"Pirkimas {pur.doc_number}".strip(),
+                        counterparty=pur.supplier.name,
+                        amount=pp.amount_eur,
+                        deductible=pur.deductible,
+                        source="purchase",
+                    )
+                )
+    else:
+        for pur in Purchase.objects.filter(
+            tenant=tenant,
+            document_date__year=year,
+            document_date__month=month,
+            status__in=[
+                Purchase.Status.RECEIVED,
+                Purchase.Status.PARTIALLY_PAID,
+                Purchase.Status.PAID,
+            ],
+        ).select_related("supplier"):
+            rows.append(
+                JournalRow(
+                    date=pur.document_date,
+                    kind="expense",
+                    description=f"Pirkimas {pur.doc_number}".strip(),
+                    counterparty=pur.supplier.name,
+                    amount=pur.total_eur,
+                    deductible=pur.deductible,
+                    source="purchase",
                 )
             )
 

@@ -92,6 +92,58 @@ export interface Invoice {
 	payments: Payment[];
 }
 
+export interface Supplier {
+	id: number;
+	name: string;
+	code: string;
+	vat_code: string;
+	email: string;
+	address: string;
+}
+
+export type PurchaseDocType = '' | 'kio' | 'ppk';
+export type PurchaseStatus = 'received' | 'partially_paid' | 'paid' | 'cancelled';
+
+export interface PurchaseLine {
+	id?: number;
+	description: string;
+	quantity: string;
+	unit: string;
+	unit_price: string;
+	total?: string;
+}
+
+export interface PurchasePayment {
+	id?: number;
+	amount_original: string;
+	exchange_rate: string;
+	amount_eur?: string;
+	paid_at: string;
+	method: PaymentMethod;
+	doc_type: PurchaseDocType;
+	doc_number: string;
+	note: string;
+}
+
+export interface Purchase {
+	id: number;
+	supplier: Supplier;
+	doc_number: string;
+	document_date: string;
+	due_date: string | null;
+	currency: 'EUR' | 'PLN';
+	exchange_rate: string;
+	status: PurchaseStatus;
+	category_id: number | null;
+	deductible: boolean;
+	notes: string;
+	total: string;
+	total_eur: string;
+	paid_total: string;
+	lines: PurchaseLine[];
+	payments: PurchasePayment[];
+}
+
 export interface Category {
 	id: number;
 	kind: 'income' | 'expense';

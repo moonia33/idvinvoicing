@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.tenancy",
     "apps.invoicing",
+    "apps.purchases",
     "apps.ledger",
     "apps.taxes",
     "apps.reports",

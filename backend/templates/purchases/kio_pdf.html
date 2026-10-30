@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A5 landscape; margin: 1.5cm; }
+  body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 10pt; color: #111; }
+  h1 { font-size: 14pt; margin: 0 0 4px; }
+  .muted { color: #555; font-size: 9pt; }
+  .cash-doc { margin-top: 10px; }
+  table.kv { width: 100%; border-collapse: collapse; margin: 14px 0; }
+  table.kv td { border-bottom: 1px solid #ddd; padding: 7px 6px; vertical-align: top; }
+  table.kv td.k { width: 30%; font-size: 8.5pt; text-transform: uppercase; color: #888; }
+  table.sign { width: 100%; margin-top: 36px; }
+  table.sign td { width: 50%; padding-right: 40px; }
+  .sig-label { font-size: 8pt; text-transform: uppercase; color: #888; margin-bottom: 26px; }
+  .sig-line { border-bottom: 1px solid #333; }
+</style>
+</head>
+<body>
+<div class="cash-doc">
+  <h1>KASOS IŠLAIDŲ ORDERIS</h1>
+  <p class="muted">Nr. {{ payment.doc_number }} &nbsp;|&nbsp; Data: {{ payment.paid_at|date:"Y-m-d" }}</p>
+
+  <table class="kv">
+    <tr>
+      <td class="k">Išmokėta</td>
+      <td>{{ purchase.supplier.name }}{% if purchase.supplier.code %} (kodas {{ purchase.supplier.code }}){% endif %}</td>
+    </tr>
+    <tr>
+      <td class="k">Pagal dokumentą</td>
+      <td>Sąskaita {{ purchase.doc_number }}{% if purchase.document_date %} iš {{ purchase.document_date|date:"Y-m-d" }}{% endif %}</td>
+    </tr>
+    <tr>
+      <td class="k">Suma</td>
+      <td><strong>{{ payment.amount_eur }} EUR</strong>{% if purchase.currency != "EUR" %} ({{ payment.amount_original }} {{ purchase.currency }}){% endif %}</td>
+    </tr>
+    <tr>
+      <td class="k">Suma žodžiais</td>
+      <td>{{ amount_words }}</td>
+    </tr>
+    {% if payment.note %}
+    <tr>
+      <td class="k">Pastaba</td>
+      <td>{{ payment.note }}</td>
+    </tr>
+    {% endif %}
+  </table>
+
+  <table class="sign">
+    <tr>
+      <td>
+        <div class="sig-label">Išrašė</div>
+        {% if profile %}{{ profile.seller_name }}{% endif %}
+        <div class="sig-line"></div>
+      </td>
+      <td>
+        <div class="sig-label">Gavo</div>
+        <div class="sig-line"></div>
+      </td>
+    </tr>
+  </table>
+</div>
+</body>
+</html>

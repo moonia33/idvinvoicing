@@ -34,6 +34,20 @@ export const DOC_TYPE_LABELS: Record<string, string> = {
 	ppk: 'Pinigų priėmimo kvitas (PPK)'
 };
 
+export const PURCHASE_STATUS_LABELS: Record<string, string> = {
+	received: 'Gauta',
+	partially_paid: 'Dalinai apmokėta',
+	paid: 'Apmokėta',
+	cancelled: 'Anuliuota'
+};
+
+export const PURCHASE_DOC_TYPES: Record<string, string> = {
+	kio: 'Kasos išlaidų orderis (KIO)',
+	ppk: 'Tiekėjo PPK'
+};
+
+export const CURRENCIES = ['EUR', 'PLN'] as const;
+
 export const FREQ_LABELS: Record<string, string> = {
 	monthly: 'Kas mėnesį',
 	quarterly: 'Kas ketvirtį',

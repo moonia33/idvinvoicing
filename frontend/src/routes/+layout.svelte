@@ -18,7 +18,9 @@
 		Calculator,
 		Settings,
 		LogOut,
-		Package
+		Package,
+		ShoppingCart,
+		Truck
 	} from '@lucide/svelte';
 	import type { LayoutProps } from './$types';
 
@@ -29,6 +31,8 @@
 		{ href: '/invoices', label: 'Sąskaitos', icon: FileText },
 		{ href: '/services', label: 'Paslaugos', icon: Package },
 		{ href: '/clients', label: 'Klientai', icon: Users },
+		{ href: '/purchases', label: 'Pirkimai', icon: ShoppingCart },
+		{ href: '/suppliers', label: 'Tiekėjai', icon: Truck },
 		{ href: '/journal', label: 'Žurnalas', icon: BookOpen },
 		{ href: '/recurring', label: 'Pasikartojančios', icon: Repeat },
 		{ href: '/taxes', label: 'Mokesčiai', icon: Calculator },
