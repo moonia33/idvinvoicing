@@ -33,3 +33,4 @@ Thumbs.db
 .vscode/
 .pnpm-store/
 pnpm-debug.log
+fe-dev.log

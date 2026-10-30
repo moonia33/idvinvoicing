@@ -18,6 +18,19 @@ class ClientOut(ClientIn):
     id: int
 
 
+class ServiceIn(Schema):
+    code: str = ""
+    name: str
+    category_id: int | None = None
+    unit: str = "vnt."
+    unit_price: Decimal
+    active: bool = True
+
+
+class ServiceOut(ServiceIn):
+    id: int
+
+
 class InvoiceLineIn(Schema):
     description: str
     quantity: Decimal = Decimal("1")

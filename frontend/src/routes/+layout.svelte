@@ -17,7 +17,8 @@
 		Repeat,
 		Calculator,
 		Settings,
-		LogOut
+		LogOut,
+		Package
 	} from '@lucide/svelte';
 	import type { LayoutProps } from './$types';
 
@@ -26,6 +27,7 @@
 	const NAV = [
 		{ href: '/', label: 'Suvestinė', icon: LayoutDashboard },
 		{ href: '/invoices', label: 'Sąskaitos', icon: FileText },
+		{ href: '/services', label: 'Paslaugos', icon: Package },
 		{ href: '/clients', label: 'Klientai', icon: Users },
 		{ href: '/journal', label: 'Žurnalas', icon: BookOpen },
 		{ href: '/recurring', label: 'Pasikartojančios', icon: Repeat },

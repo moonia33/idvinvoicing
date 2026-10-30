@@ -55,6 +55,16 @@ export interface Payment {
 
 export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'cancelled';
 
+export interface Service {
+	id: number;
+	code: string;
+	name: string;
+	category_id: number | null;
+	unit: string;
+	unit_price: string;
+	active: boolean;
+}
+
 export interface Invoice {
 	id: number;
 	client: Client;

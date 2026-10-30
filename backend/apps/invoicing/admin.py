@@ -7,6 +7,7 @@ from apps.invoicing.models import (
     Payment,
     RecurringLine,
     RecurringTemplate,
+    Service,
 )
 
 
@@ -14,6 +15,13 @@ from apps.invoicing.models import (
 class ClientAdmin(admin.ModelAdmin):
     list_display = ["name", "tenant", "code", "email"]
     list_filter = ["tenant"]
+    search_fields = ["name", "code"]
+
+
+@admin.register(Service)
+class ServiceAdmin(admin.ModelAdmin):
+    list_display = ["name", "tenant", "code", "unit", "unit_price", "active"]
+    list_filter = ["tenant", "active"]
     search_fields = ["name", "code"]
 
 

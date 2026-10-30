@@ -21,6 +21,31 @@ class Client(models.Model):
         return self.name
 
 
+class Service(models.Model):
+    """Prekės/paslaugos katalogo įrašas – greitas sąskaitų eilučių pildymas."""
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="services")
+    category = models.ForeignKey(
+        "ledger.Category",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="services",
+        limit_choices_to={"kind": "income"},
+    )
+    code = models.CharField("Prekės/paslaugos kodas", max_length=50, blank=True)
+    name = models.CharField(max_length=200)
+    unit = models.CharField("Vienetas", max_length=20, default="vnt.")
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.code + ' ' if self.code else ''}{self.name}"
+
+
 class Invoice(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Juodraštis"

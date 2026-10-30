@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from ninja import Router, Status
 from ninja.errors import HttpError
 
-from apps.invoicing.models import Client, Invoice, RecurringTemplate
+from apps.invoicing.models import Client, Invoice, RecurringTemplate, Service
 from apps.invoicing.schemas import (
     ClientIn,
     ClientOut,
@@ -18,6 +18,8 @@ from apps.invoicing.schemas import (
     RecurringIn,
     RecurringOut,
     SendIn,
+    ServiceIn,
+    ServiceOut,
 )
 from apps.invoicing.services import generate_invoice_pdf, issue_invoice
 from apps.tenancy.api import current_tenant
@@ -69,6 +71,56 @@ def update_client(request, client_id: int, data: ClientIn):
 @router.delete("/clients/{client_id}", response={204: None})
 def delete_client(request, client_id: int):
     get_client(current_tenant(request), client_id).delete()
+    return Status(204, None)
+
+
+# --- Services (katalogas) ---
+
+
+def get_service(tenant: Tenant, service_id: int) -> Service:
+    return get_object_or_404(Service, id=service_id, tenant=tenant)
+
+
+def _service_values(tenant: Tenant, data: ServiceIn) -> dict:
+    from apps.ledger.models import Category
+
+    values = data.model_dump()
+    category_id = values.pop("category_id")
+    if category_id:
+        values["category"] = get_object_or_404(
+            Category, id=category_id, tenant=tenant, kind="income"
+        )
+    else:
+        values["category"] = None
+    return values
+
+
+@router.get("/services", response=list[ServiceOut])
+def list_services(request, all: bool = False):
+    qs = Service.objects.filter(tenant=current_tenant(request))
+    return qs if all else qs.filter(active=True)
+
+
+@router.post("/services", response={201: ServiceOut})
+def create_service(request, data: ServiceIn):
+    tenant = current_tenant(request)
+    service = Service.objects.create(tenant=tenant, **_service_values(tenant, data))
+    return Status(201, service)
+
+
+@router.put("/services/{service_id}", response=ServiceOut)
+def update_service(request, service_id: int, data: ServiceIn):
+    tenant = current_tenant(request)
+    service = get_service(tenant, service_id)
+    for key, value in _service_values(tenant, data).items():
+        setattr(service, key, value)
+    service.save()
+    return service
+
+
+@router.delete("/services/{service_id}", response={204: None})
+def delete_service(request, service_id: int):
+    get_service(current_tenant(request), service_id).delete()
     return Status(204, None)
 
 

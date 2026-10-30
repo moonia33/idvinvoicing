@@ -10,10 +10,10 @@
 	import * as Select from '#lib/components/ui/select';
 
 	let invoices = $state<Invoice[]>([]);
-	let statusFilter = $state('');
+	let statusFilter = $state('all');
 
 	async function load() {
-		const q = statusFilter ? `?status=${statusFilter}` : '';
+		const q = statusFilter !== 'all' ? `?status=${statusFilter}` : '';
 		invoices = await api<Invoice[]>(`/invoices${q}`);
 	}
 
@@ -25,10 +25,10 @@
 	<div class="flex items-center gap-3">
 		<Select.Root type="single" bind:value={statusFilter} onValueChange={() => load()}>
 			<Select.Trigger class="w-44">
-				{statusFilter ? STATUS_LABELS[statusFilter] : 'Visi statusai'}
+				{statusFilter === 'all' ? 'Visi statusai' : STATUS_LABELS[statusFilter]}
 			</Select.Trigger>
 			<Select.Content>
-				<Select.Item value="" label="Visi">Visi</Select.Item>
+				<Select.Item value="all" label="Visi">Visi</Select.Item>
 				{#each Object.entries(STATUS_LABELS) as [v, l] (v)}
 					<Select.Item value={v} label={l}>{l}</Select.Item>
 				{/each}

@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
-	import type { Client, Invoice } from '#lib/types';
+	import type { Client, Invoice, Service } from '#lib/types';
 	import { fmtEur } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
@@ -14,15 +14,21 @@
 	import { Plus, Trash2 } from '@lucide/svelte';
 
 	let clients = $state<Client[]>([]);
+	let services = $state<Service[]>([]);
 	let clientId = $state('');
 	let dueDate = $state('');
 	let notes = $state('');
-	let lines = $state([{ description: '', quantity: '1', unit: 'vnt.', unit_price: '' }]);
+	let lines = $state([
+		{ description: '', quantity: '1', unit: 'vnt.', unit_price: '', service_id: '' }
+	]);
 	let error = $state('');
 	let saving = $state(false);
 
 	onMount(async () => {
-		clients = await api<Client[]>('/clients');
+		[clients, services] = await Promise.all([
+			api<Client[]>('/clients'),
+			api<Service[]>('/services')
+		]);
 	});
 
 	let total = $derived(
@@ -30,7 +36,19 @@
 	);
 
 	function addLine() {
-		lines = [...lines, { description: '', quantity: '1', unit: 'vnt.', unit_price: '' }];
+		lines = [
+			...lines,
+			{ description: '', quantity: '1', unit: 'vnt.', unit_price: '', service_id: '' }
+		];
+	}
+
+	function pickService(i: number, serviceId: string | undefined) {
+		const s = services.find((x) => String(x.id) === serviceId);
+		if (!s) return;
+		lines[i].description = s.name;
+		lines[i].unit = s.unit;
+		lines[i].unit_price = s.unit_price;
+		lines[i].service_id = serviceId ?? '';
 	}
 
 	function removeLine(i: number) {
@@ -97,6 +115,22 @@
 				<div class="space-y-2">
 					{#each lines as line, i (i)}
 						<div class="flex items-center gap-2">
+							<Select.Root
+								type="single"
+								value={line.service_id}
+								onValueChange={(v) => pickService(i, v)}
+							>
+								<Select.Trigger class="w-52">
+									{services.find((s) => String(s.id) === line.service_id)?.name ?? 'Iš katalogo…'}
+								</Select.Trigger>
+								<Select.Content>
+									{#each services as s (s.id)}
+										<Select.Item value={String(s.id)} label={s.name}>
+											{s.code ? `${s.code} ` : ''}{s.name} – {fmtEur(s.unit_price)}
+										</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
 							<Input
 								class="flex-1"
 								placeholder="Paslaugos aprašymas"
