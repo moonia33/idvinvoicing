@@ -57,18 +57,12 @@ def _gpm(profit: Decimal, rule: TaxRule) -> TaxLine:
         return TaxLine(Decimal("0"), rule.gpm_rate, Decimal("0"))
     if profit <= rule.gpm_soft_cap:
         # Lengvatine formulė: P x (gpm_rate - coef x (1 - P/soft_cap))
-        effective = rule.gpm_rate - rule.gpm_reduction_coef * (
-            1 - profit / rule.gpm_soft_cap
-        )
-        return TaxLine(
-            profit, effective, _q(profit * effective), "lengvatinė GPM formulė"
-        )
+        effective = rule.gpm_rate - rule.gpm_reduction_coef * (1 - profit / rule.gpm_soft_cap)
+        return TaxLine(profit, effective, _q(profit * effective), "lengvatinė GPM formulė")
     return TaxLine(profit, rule.gpm_rate, _q(profit * rule.gpm_rate))
 
 
-def _social(
-    profit: Decimal, rate: Decimal, rule: TaxRule, exempt: bool
-) -> TaxLine:
+def _social(profit: Decimal, rate: Decimal, rule: TaxRule, exempt: bool) -> TaxLine:
     if exempt or profit <= 0:
         return TaxLine(Decimal("0"), rate, Decimal("0"))
     base = profit * rule.social_base_share
@@ -81,9 +75,7 @@ def _social(
     return TaxLine(_q(base), rate, _q(base * rate), note)
 
 
-def compute_taxes(
-    tenant: Tenant, year: int, psd_paid_elsewhere: bool = False
-) -> TaxBreakdown:
+def compute_taxes(tenant: Tenant, year: int, psd_paid_elsewhere: bool = False) -> TaxBreakdown:
     rule = TaxRule.objects.filter(year__lte=year).order_by("-year").first()
     warnings: list[str] = []
     if rule is None:
@@ -96,9 +88,7 @@ def compute_taxes(
 
     profile = getattr(tenant, "profile", None)
     method = (
-        profile.deductions_method
-        if profile is not None
-        else SellerProfile.DeductionsMethod.PCT30
+        profile.deductions_method if profile is not None else SellerProfile.DeductionsMethod.PCT30
     )
     applied_pct30 = _q(income * rule.fixed_deduction_rate)
     applied = applied_pct30 if method == SellerProfile.DeductionsMethod.PCT30 else deductible

@@ -2,8 +2,8 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { api } from '#lib/api';
-	import type { Invoice } from '#lib/types';
-	import { fmtEur, fmtDate, STATUS_LABELS } from '#lib/format';
+	import type { Invoice, PaymentDocType, PaymentMethod } from '#lib/types';
+	import { fmtEur, fmtDate, STATUS_LABELS, PAYMENT_METHODS, DOC_TYPE_LABELS } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
 	import { Badge } from '#lib/components/ui/badge';
 	import { Input } from '#lib/components/ui/input';
@@ -11,8 +11,9 @@
 	import * as Card from '#lib/components/ui/card';
 	import * as Table from '#lib/components/ui/table';
 	import * as Dialog from '#lib/components/ui/dialog';
+	import * as Select from '#lib/components/ui/select';
 	import { Textarea } from '#lib/components/ui/textarea';
-	import { Download, Send, XCircle, CheckCircle, Coins } from '@lucide/svelte';
+	import { Download, Send, XCircle, CheckCircle, Coins, FileText } from '@lucide/svelte';
 
 	let invoice = $state<Invoice | null>(null);
 	let error = $state('');
@@ -21,7 +22,9 @@
 	let payForm = $state({
 		amount: '',
 		paid_at: new Date().toISOString().slice(0, 10),
-		method: 'bank',
+		method: 'bank' as PaymentMethod,
+		doc_type: 'kpo' as PaymentDocType,
+		doc_number: '',
 		note: ''
 	});
 
@@ -49,7 +52,10 @@
 	async function addPayment(e: SubmitEvent) {
 		e.preventDefault();
 		try {
-			await api(`/invoices/${id}/payments`, { method: 'POST', body: payForm });
+			await api(`/invoices/${id}/payments`, {
+				method: 'POST',
+				body: { ...payForm, doc_type: payForm.method === 'cash' ? payForm.doc_type : '' }
+			});
 			payOpen = false;
 			await load();
 		} catch (err) {
@@ -94,6 +100,15 @@
 				<Button variant="outline" href="/api/v1/invoices/{invoice.id}/pdf" target="_blank">
 					<Download class="size-4" /> PDF
 				</Button>
+				{#if invoice.payments.some((p) => p.doc_type)}
+					<Button
+						variant="outline"
+						href="/api/v1/invoices/{invoice.id}/pdf?with_cash_docs=1"
+						target="_blank"
+					>
+						<Download class="size-4" /> PDF + kasos dok.
+					</Button>
+				{/if}
 				<Button variant="outline" onclick={openSend}><Send class="size-4" /> Siųsti</Button>
 				<Button variant="outline" onclick={() => (payOpen = true)}
 					><Coins class="size-4" /> Mokėjimas</Button
@@ -164,8 +179,26 @@
 				{:else}
 					<ul class="space-y-2 text-sm">
 						{#each invoice.payments as p (p.id)}
-							<li class="flex justify-between border-b pb-1 last:border-0">
-								<span>{p.paid_at}</span><span class="font-medium">{fmtEur(p.amount)}</span>
+							<li class="border-b pb-2 last:border-0">
+								<div class="flex items-center justify-between">
+									<span>{p.paid_at}</span>
+									<span class="font-medium">{fmtEur(p.amount)}</span>
+								</div>
+								<div class="mt-0.5 flex items-center justify-between text-xs text-muted-foreground">
+									<span>{PAYMENT_METHODS[p.method]}{p.doc_number ? ` · ${p.doc_number}` : ''}</span>
+									{#if p.doc_type}
+										<Button
+											variant="ghost"
+											size="sm"
+											class="h-6 px-1 text-xs"
+											href="/api/v1/payments/{p.id}/cash-doc.pdf"
+											target="_blank"
+										>
+											<FileText class="size-3" />
+											{p.doc_type.toUpperCase()}
+										</Button>
+									{/if}
+								</div>
 							</li>
 						{/each}
 					</ul>
@@ -194,18 +227,54 @@
 	<Dialog.Content>
 		<Dialog.Header><Dialog.Title>Registruoti mokėjimą</Dialog.Title></Dialog.Header>
 		<form onsubmit={addPayment} class="space-y-3">
-			<div class="space-y-1.5">
-				<Label>Suma EUR *</Label><Input
-					type="number"
-					step="0.01"
-					min="0.01"
-					bind:value={payForm.amount}
-					required
-				/>
+			<div class="grid grid-cols-2 gap-3">
+				<div class="space-y-1.5">
+					<Label>Suma EUR *</Label><Input
+						type="number"
+						step="0.01"
+						min="0.01"
+						bind:value={payForm.amount}
+						required
+					/>
+				</div>
+				<div class="space-y-1.5">
+					<Label>Data *</Label><Input type="date" bind:value={payForm.paid_at} required />
+				</div>
 			</div>
-			<div class="space-y-1.5">
-				<Label>Data *</Label><Input type="date" bind:value={payForm.paid_at} required />
+			<div class="grid grid-cols-2 gap-3">
+				<div class="space-y-1.5">
+					<Label>Mokėjimo būdas</Label>
+					<Select.Root type="single" bind:value={payForm.method}>
+						<Select.Trigger class="w-full">{PAYMENT_METHODS[payForm.method]}</Select.Trigger>
+						<Select.Content>
+							{#each Object.entries(PAYMENT_METHODS) as [v, label] (v)}
+								<Select.Item value={v} {label}>{label}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</div>
+				<div class="space-y-1.5">
+					<Label>{payForm.method === 'cash' ? 'Kasos dokumentas' : 'Dokumento nr.'}</Label>
+					{#if payForm.method === 'cash'}
+						<Select.Root type="single" bind:value={payForm.doc_type}>
+							<Select.Trigger class="w-full">{DOC_TYPE_LABELS[payForm.doc_type]}</Select.Trigger>
+							<Select.Content>
+								{#each Object.entries(DOC_TYPE_LABELS) as [v, label] (v)}
+									<Select.Item value={v} {label}>{label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					{:else}
+						<Input bind:value={payForm.doc_number} placeholder="Pvz. banko operacijos nr." />
+					{/if}
+				</div>
 			</div>
+			{#if payForm.method === 'cash'}
+				<div class="space-y-1.5">
+					<Label>Dokumento nr.</Label>
+					<Input bind:value={payForm.doc_number} placeholder="Tuščia – suteikiama automatiškai" />
+				</div>
+			{/if}
 			<div class="space-y-1.5"><Label>Pastaba</Label><Input bind:value={payForm.note} /></div>
 			<Dialog.Footer><Button type="submit">Išsaugoti</Button></Dialog.Footer>
 		</form>

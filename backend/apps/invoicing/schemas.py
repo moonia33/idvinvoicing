@@ -54,6 +54,8 @@ class PaymentIn(Schema):
     amount: Decimal
     paid_at: date
     method: Payment.Method = Payment.Method.BANK
+    doc_type: Payment.DocType = Payment.DocType.NONE
+    doc_number: str = ""
     note: str = ""
 
 

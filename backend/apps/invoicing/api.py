@@ -7,7 +7,7 @@ from ninja import Router, Status
 from ninja.errors import HttpError
 
 from apps.core.models import DocumentSequence
-from apps.invoicing.models import Client, Invoice, RecurringTemplate, Service
+from apps.invoicing.models import Client, Invoice, Payment, RecurringTemplate, Service
 from apps.invoicing.schemas import (
     ClientIn,
     ClientOut,
@@ -22,7 +22,12 @@ from apps.invoicing.schemas import (
     ServiceIn,
     ServiceOut,
 )
-from apps.invoicing.services import generate_invoice_pdf, issue_invoice
+from apps.invoicing.services import (
+    generate_cash_doc_pdf,
+    generate_invoice_pdf,
+    issue_invoice,
+    next_cash_doc_number,
+)
 from apps.tenancy.api import current_tenant
 from apps.tenancy.models import Tenant
 
@@ -234,8 +239,13 @@ def add_payment(request, invoice_id: int, data: PaymentIn):
     invoice = get_invoice(current_tenant(request), invoice_id)
     if invoice.status in (Invoice.Status.DRAFT, Invoice.Status.CANCELLED):
         raise HttpError(400, "Mokėjimai galimi tik išrašytai sąskaitai")
+    payload = data.model_dump()
+    if data.doc_type in (Payment.DocType.KPO, Payment.DocType.PPK) and not payload["doc_number"]:
+        payload["doc_number"] = next_cash_doc_number(
+            invoice.tenant, data.doc_type.value, data.paid_at.year
+        )
     with transaction.atomic():
-        payment = invoice.payments.create(**data.model_dump())
+        payment = invoice.payments.create(**payload)
         invoice.recalc_status()
         invoice.save(update_fields=["status", "updated_at"])
     return Status(201, payment)
@@ -256,12 +266,25 @@ def send_invoice(request, invoice_id: int, data: SendIn):
 
 
 @router.get("/invoices/{invoice_id}/pdf", response={200: None})
-def invoice_pdf(request, invoice_id: int):
+def invoice_pdf(request, invoice_id: int, with_cash_docs: bool = False):
     invoice = get_invoice(current_tenant(request), invoice_id)
-    pdf = generate_invoice_pdf(invoice)
+    pdf = generate_invoice_pdf(invoice, with_cash_docs=with_cash_docs)
     response = HttpResponse(pdf, content_type="application/pdf")
     filename = invoice.full_number or f"juodrastis-{invoice.pk}"
     response["Content-Disposition"] = f'inline; filename="{filename}.pdf"'
+    return response
+
+
+@router.get("/payments/{payment_id}/cash-doc.pdf", response={200: None})
+def cash_doc_pdf(request, payment_id: int):
+    payment = get_object_or_404(Payment, id=payment_id, invoice__tenant=current_tenant(request))
+    if payment.doc_type not in (Payment.DocType.KPO, Payment.DocType.PPK):
+        raise HttpError(400, "Kasos dokumentas galimas tik KPO/PPK mokėjimams")
+    pdf = generate_cash_doc_pdf(payment)
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'inline; filename="{payment.doc_number or "kasos-dokumentas"}.pdf"'
+    )
     return response
 
 

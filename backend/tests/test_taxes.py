@@ -78,9 +78,7 @@ def test_min_social_base(api_client, tenant):
 
 def test_psd_exempt(api_client, tenant):
     paid_invoice(api_client, "40000.00")
-    s = api_client.get(
-        "/api/v1/taxes/summary?year=2025&psd_paid_elsewhere=true"
-    ).json()
+    s = api_client.get("/api/v1/taxes/summary?year=2025&psd_paid_elsewhere=true").json()
     assert s["psd"]["amount"] == "0.00"
 
 

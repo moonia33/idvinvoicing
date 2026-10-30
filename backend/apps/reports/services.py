@@ -45,9 +45,7 @@ def journal_workbook(tenant: Tenant, year: int, month: int | None = None) -> byt
                 ]
             )
 
-    s = journal_summary(
-        [r for m in months for r in journal_rows(tenant, year, m)]
-    )
+    s = journal_summary([r for m in months for r in journal_rows(tenant, year, m)])
     ws.append([])
     for label, value in [
         ("Pajamos iš viso", s["income_total"]),

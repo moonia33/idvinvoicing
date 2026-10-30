@@ -45,11 +45,16 @@ export interface InvoiceLine {
 	total?: string;
 }
 
+export type PaymentMethod = 'bank' | 'cash' | 'card' | 'other';
+export type PaymentDocType = '' | 'kpo' | 'ppk';
+
 export interface Payment {
 	id?: number;
 	amount: string;
 	paid_at: string;
-	method: 'bank' | 'cash' | 'other';
+	method: PaymentMethod;
+	doc_type: PaymentDocType;
+	doc_number: string;
 	note: string;
 }
 

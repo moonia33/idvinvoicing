@@ -40,9 +40,7 @@ def test_smtp_upsert_and_password_encrypted(api_client, tenant):
 
 
 def test_invoice_send_queues_outbox(api_client, monkeypatch):
-    monkeypatch.setattr(
-        "apps.invoicing.services.generate_invoice_pdf", lambda inv: b"%PDF-1.4"
-    )
+    monkeypatch.setattr("apps.invoicing.services.generate_invoice_pdf", lambda inv: b"%PDF-1.4")
     cid = post_json(api_client, "/api/v1/clients", {"name": "K", "email": "k@x.lt"}).json()["id"]
     inv = post_json(
         api_client,
@@ -67,7 +65,10 @@ def test_process_outbox_sent(api_client, tenant, monkeypatch):
         content_type="application/json",
     )
     EmailOutbox.objects.create(
-        tenant=tenant, to_email="a@b.lt", subject="Test", attachment=b"%PDF",
+        tenant=tenant,
+        to_email="a@b.lt",
+        subject="Test",
+        attachment=b"%PDF",
         attachment_name="inv.pdf",
     )
     result = process_outbox()

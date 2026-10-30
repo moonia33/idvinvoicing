@@ -18,6 +18,15 @@
   table.totals td { padding: 4px 8px; }
   .total-row td { border-top: 2px solid #333; font-weight: bold; font-size: 11pt; }
   .footer { margin-top: 32px; }
+  .cash-doc { page-break-before: always; }
+  .cash-doc h1 { font-size: 14pt; }
+  table.kv { width: 100%; border-collapse: collapse; margin: 14px 0; }
+  table.kv td { border-bottom: 1px solid #ddd; padding: 7px 6px; vertical-align: top; }
+  table.kv td.k { width: 30%; font-size: 8.5pt; text-transform: uppercase; color: #888; }
+  table.sign { width: 100%; margin-top: 36px; }
+  table.sign td { width: 50%; padding-right: 40px; }
+  .sig-label { font-size: 8pt; text-transform: uppercase; color: #888; margin-bottom: 26px; }
+  .sig-line { border-bottom: 1px solid #333; }
 </style>
 </head>
 <body>
@@ -90,5 +99,9 @@
       IBAN: {{ profile.iban }}</p>
     {% endif %}
   </div>
+
+  {% for d in cash_docs %}
+    {% include "invoicing/cash_doc_body.html" %}
+  {% endfor %}
 </body>
 </html>

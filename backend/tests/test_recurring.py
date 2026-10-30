@@ -43,12 +43,8 @@ def test_recurring_generates_invoice(api_client, tenant, monkeypatch):
 
 def test_recurring_auto_send(api_client, tenant, monkeypatch):
     sent = []
-    monkeypatch.setattr(
-        "apps.invoicing.tasks.queue_invoice_email", lambda inv, to: sent.append(to)
-    )
-    cid = post_json(
-        api_client, "/api/v1/clients", {"name": "K", "email": "k@x.lt"}
-    ).json()["id"]
+    monkeypatch.setattr("apps.invoicing.tasks.queue_invoice_email", lambda inv, to: sent.append(to))
+    cid = post_json(api_client, "/api/v1/clients", {"name": "K", "email": "k@x.lt"}).json()["id"]
     post_json(
         api_client,
         "/api/v1/recurring",

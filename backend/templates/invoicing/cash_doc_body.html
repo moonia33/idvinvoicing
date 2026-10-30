@@ -1,0 +1,43 @@
+<div class="cash-doc">
+  <h1>{{ d.title }}</h1>
+  <p class="muted">Nr. {{ d.payment.doc_number }} &nbsp;|&nbsp; Data: {{ d.payment.paid_at|date:"Y-m-d" }}</p>
+
+  <table class="kv">
+    <tr>
+      <td class="k">Priimta iš</td>
+      <td>{{ invoice.client.name }}{% if invoice.client.code %} (kodas {{ invoice.client.code }}){% endif %}</td>
+    </tr>
+    <tr>
+      <td class="k">Pagal dokumentą</td>
+      <td>Sąskaita faktūra {{ invoice.full_number }}{% if invoice.issue_date %} iš {{ invoice.issue_date|date:"Y-m-d" }}{% endif %}</td>
+    </tr>
+    <tr>
+      <td class="k">Suma</td>
+      <td><strong>{{ d.payment.amount }} EUR</strong></td>
+    </tr>
+    <tr>
+      <td class="k">Suma žodžiais</td>
+      <td>{{ d.amount_words }}</td>
+    </tr>
+    {% if d.payment.note %}
+    <tr>
+      <td class="k">Pastaba</td>
+      <td>{{ d.payment.note }}</td>
+    </tr>
+    {% endif %}
+  </table>
+
+  <table class="sign">
+    <tr>
+      <td>
+        <div class="sig-label">Išrašė</div>
+        {% if profile %}{{ profile.seller_name }}{% endif %}
+        <div class="sig-line"></div>
+      </td>
+      <td>
+        <div class="sig-label">Priėmė</div>
+        <div class="sig-line"></div>
+      </td>
+    </tr>
+  </table>
+</div>

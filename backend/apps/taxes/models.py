@@ -11,9 +11,7 @@ class TaxRule(models.Model):
 
     year = models.PositiveSmallIntegerField(unique=True)
 
-    gpm_rate = models.DecimalField(
-        max_digits=5, decimal_places=4, default=Decimal("0.15")
-    )
+    gpm_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0.15"))
     gpm_soft_cap = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -35,12 +33,8 @@ class TaxRule(models.Model):
         default=Decimal("0.90"),
         help_text="VSD/PSD bazė – procentas apmokestinamojo pelno",
     )
-    vsd_rate = models.DecimalField(
-        max_digits=5, decimal_places=4, default=Decimal("0.1252")
-    )
-    psd_rate = models.DecimalField(
-        max_digits=5, decimal_places=4, default=Decimal("0.0698")
-    )
+    vsd_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0.1252"))
+    psd_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0.0698"))
     mma_monthly = models.DecimalField(
         max_digits=10,
         decimal_places=2,
