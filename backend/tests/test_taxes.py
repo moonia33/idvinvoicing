@@ -87,9 +87,11 @@ def test_summary_actual_deductions(api_client, tenant):
 def test_min_social_base(api_client, tenant):
     paid_invoice(api_client, "3000.00")
     s = api_client.get("/api/v1/taxes/summary?year=2025").json()
-    # pelnas 2100 -> bazė 1890 < 12xMMA=12456 -> minimali bazė
-    assert s["vsd"]["base"] == "12456.00"
-    assert "minimali" in s["vsd"]["note"]
+    # pelnas 2100 -> VSD be minimumo: 90% x 2100 = 1890; PSD su minimumu 12xMMA=12456
+    assert s["vsd"]["base"] == "1890.00"
+    assert s["vsd"]["amount"] == "236.63"
+    assert s["psd"]["base"] == "12456.00"
+    assert "minimali" in s["psd"]["note"]
 
 
 def test_psd_paid_elsewhere_no_minimum(api_client, tenant):
@@ -109,10 +111,11 @@ def test_rule_fallback_warns(api_client, tenant):
 def test_months_prorates_min_base(api_client, tenant):
     paid_invoice(api_client, "3000.00")
     s = api_client.get("/api/v1/taxes/summary?year=2025&months=3").json()
-    # minimali bazė = 3 x 1038 = 3114 (ne 12xMMA)
+    # PSD minimali bazė = 3 x 1038 = 3114 (ne 12xMMA); VSD – be minimumo
     assert s["months"] == 3
-    assert s["vsd"]["base"] == "3114.00"
-    assert "3 x MMA" in s["vsd"]["note"]
+    assert s["psd"]["base"] == "3114.00"
+    assert "3 x MMA" in s["psd"]["note"]
+    assert s["vsd"]["base"] == "1890.00"
     assert len(s["monthly"]) == 3
 
 
@@ -176,10 +179,12 @@ def test_activity_start_prorates_minimum(api_client, tenant):
     )
     paid_invoice(api_client, "3000.00")
     s = api_client.get("/api/v1/taxes/summary?year=2025").json()
-    # veikla nuo rugsėjo -> min. bazė 4 x MMA (rugs., spal., lapkr., gruod.)
+    # veikla nuo rugsėjo -> PSD min. bazė 4 x MMA (rugs., spal., lapkr., gruod.)
     assert s["active_months"] == 4
-    assert s["vsd"]["base"] == "4152.00"
-    assert "4 x MMA" in s["vsd"]["note"]
+    assert s["psd"]["base"] == "4152.00"
+    assert "4 x MMA" in s["psd"]["note"]
+    # VSD – be minimumo: 90% x 2100 = 1890
+    assert s["vsd"]["base"] == "1890.00"
     # mėnesių lentelė: mėn. iki rugsėjo -> VSD/PSD 0
     jan = s["monthly"][0]
     assert jan["vsd"] == "0.00" and jan["psd"] == "0.00"
@@ -191,7 +196,8 @@ def test_no_activity_start_uses_full_window(api_client, tenant):
     paid_invoice(api_client, "3000.00")
     s = api_client.get("/api/v1/taxes/summary?year=2025&months=3").json()
     assert s["active_months"] == 3
-    assert s["vsd"]["base"] == "3114.00"
+    assert s["psd"]["base"] == "3114.00"
+    assert s["vsd"]["base"] == "1890.00"
 
 
 def test_tax_payments_reduce_remaining(api_client, tenant):
@@ -203,21 +209,22 @@ def test_tax_payments_reduce_remaining(api_client, tenant):
             "kind": "expense",
             "document_date": "2025-02-01",
             "paid_date": "2025-02-01",
-            "amount_original": "500.00",
+            "amount_original": "200.00",
             "deductible": False,
             "tax_kind": "vsd",
             "tax_year": 2025,
         },
     )
     s = api_client.get("/api/v1/taxes/summary?year=2025").json()
-    assert s["vsd"]["paid"] == "500.00"
-    assert s["vsd"]["remaining"] == str(round(float(s["vsd"]["amount"]) - 500, 2)).ljust(0)
+    assert s["vsd"]["paid"] == "200.00"
+    # VSD = 236.63 (90% x 2100 pelno) -> liko 36.63
+    assert s["vsd"]["remaining"] == "36.63"
 
 
 def test_monthly_rows_vsd_min(api_client, tenant):
     paid_invoice(api_client, "3000.00", paid="2025-03-05")
     s = api_client.get("/api/v1/taxes/summary?year=2025&months=2").json()
     m1 = s["monthly"][0]
-    # Sausis: pelnas 0 -> VSD mėn. įmoka = 12.52% x MMA = 129.96, PSD = 72.45
-    assert m1["vsd"] == "129.96"
+    # Sausis: pelnas 0 -> VSD = 0 (minimumo nėra); PSD = 6.98% x 1038 = 72.45
+    assert m1["vsd"] == "0.00"
     assert m1["psd"] == "72.45"

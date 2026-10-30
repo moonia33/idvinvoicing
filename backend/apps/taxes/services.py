@@ -187,7 +187,8 @@ def compute_taxes(
         )
     gpm = _gpm(profit, rule)
     vsd_rate = rule.vsd_rate_pension if pension else rule.vsd_rate
-    vsd = _social(profit, vsd_rate, rule, active_months, exempt=vsd_relief, no_minimum=insured)
+    # VSD individualiai veiklai – be MMA minimumo (tik metinė luba 43 x VDU)
+    vsd = _social(profit, vsd_rate, rule, active_months, exempt=vsd_relief, no_minimum=True)
     psd = _social(
         profit, rule.psd_rate, rule, active_months, no_minimum=insured or psd_paid_elsewhere
     )
@@ -208,17 +209,12 @@ def compute_taxes(
         )
         m_profit = _q(max(m_income - m_ded, Decimal("0")))
         m_active = start is None or (year, m) >= (start.year, start.month)
+        # VSD – visada tik nuo faktinio pelno (minimumo nėra)
         if vsd_relief or not m_active:
             vsd_m = Decimal("0")
-        elif insured:
-            vsd_m = _q(m_profit * rule.social_base_share * vsd_rate)
         else:
-            vsd_m = _q(
-                max(
-                    m_profit * rule.social_base_share * vsd_rate,
-                    vsd_rate * rule.mma_monthly,
-                )
-            )
+            vsd_m = _q(m_profit * rule.social_base_share * vsd_rate)
+        # PSD – nedraustiems kas mėn. nuo MMA; draustiems – metų gale nuo pelno
         if not m_active:
             psd_m = Decimal("0")
         elif insured:
