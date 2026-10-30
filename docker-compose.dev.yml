@@ -59,6 +59,9 @@ services:
         condition: service_started
 
   frontend:
+    # Windows: geriau paleisti lokaliai (pnpm dev) – bind mount + vite optimizer
+    # labai lėtas. Docker'e paleisti su: --profile docker-frontend
+    profiles: ["docker-frontend"]
     image: node:24-alpine
     working_dir: /app
     command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
