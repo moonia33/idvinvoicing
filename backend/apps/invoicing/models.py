@@ -116,3 +116,46 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"{self.amount} {self.invoice_id}"
+
+
+class RecurringTemplate(models.Model):
+    """Periodinių sąskaitų šablonas – qcluster generuoja pagal next_run_date."""
+
+    class Frequency(models.TextChoices):
+        MONTHLY = "monthly", "Kas mėnesį"
+        QUARTERLY = "quarterly", "Kas ketvirtį"
+        YEARLY = "yearly", "Kas metus"
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="recurring_templates")
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="recurring_templates")
+    series = models.CharField(max_length=10, default="SF")
+    frequency = models.CharField(max_length=10, choices=Frequency.choices)
+    next_run_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    auto_send = models.BooleanField(default=False)
+    email_to = models.EmailField(blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["next_run_date"]
+
+    def __str__(self):
+        return f"{self.client} – {self.get_frequency_display()}"
+
+
+class RecurringLine(models.Model):
+    template = models.ForeignKey(RecurringTemplate, on_delete=models.CASCADE, related_name="lines")
+    description = models.CharField(max_length=500)
+    quantity = models.DecimalField(max_digits=10, decimal_places=3, default=Decimal("1"))
+    unit = models.CharField(max_length=20, default="vnt.")
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    @property
+    def total(self) -> Decimal:
+        return (self.quantity * self.unit_price).quantize(Decimal("0.01"))

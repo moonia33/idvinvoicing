@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from ninja import Schema
 
-from apps.invoicing.models import Invoice, Payment
+from apps.invoicing.models import Invoice, Payment, RecurringTemplate
 
 
 class ClientIn(Schema):
@@ -70,3 +70,36 @@ class InvoiceOut(Schema):
     paid_total: Decimal
     lines: list[InvoiceLineOut]
     payments: list[PaymentOut]
+
+
+class SendIn(Schema):
+    to: str | None = None
+    subject: str | None = None
+    body: str = ""
+
+
+class RecurringIn(Schema):
+    client_id: int
+    series: str = "SF"
+    frequency: RecurringTemplate.Frequency
+    next_run_date: date
+    end_date: date | None = None
+    active: bool = True
+    auto_send: bool = False
+    email_to: str = ""
+    notes: str = ""
+    lines: list[InvoiceLineIn]
+
+
+class RecurringOut(Schema):
+    id: int
+    client: ClientOut
+    series: str
+    frequency: RecurringTemplate.Frequency
+    next_run_date: date
+    end_date: date | None
+    active: bool
+    auto_send: bool
+    email_to: str
+    notes: str
+    lines: list[InvoiceLineOut]

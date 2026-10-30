@@ -1,14 +1,12 @@
-from datetime import date, timedelta
+from datetime import date
 
 from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from django.template.loader import render_to_string
 from ninja import Router, Status
 from ninja.errors import HttpError
 
-from apps.core.numbering import next_document_number
-from apps.invoicing.models import Client, Invoice
+from apps.invoicing.models import Client, Invoice, RecurringTemplate
 from apps.invoicing.schemas import (
     ClientIn,
     ClientOut,
@@ -17,7 +15,11 @@ from apps.invoicing.schemas import (
     IssueIn,
     PaymentIn,
     PaymentOut,
+    RecurringIn,
+    RecurringOut,
+    SendIn,
 )
+from apps.invoicing.services import generate_invoice_pdf, issue_invoice
 from apps.tenancy.api import current_tenant
 from apps.tenancy.models import Tenant
 
@@ -134,22 +136,17 @@ def update_invoice(request, invoice_id: int, data: InvoiceIn):
 
 
 @router.post("/invoices/{invoice_id}/issue", response=InvoiceOut)
-def issue_invoice(request, invoice_id: int, data: IssueIn):
+def issue_invoice_view(request, invoice_id: int, data: IssueIn):
     tenant = current_tenant(request)
     invoice = get_invoice(tenant, invoice_id)
     if invoice.status != Invoice.Status.DRAFT:
         raise HttpError(400, "Išrašyti galima tik juodraštį")
-    if not invoice.lines.exists():
-        raise HttpError(400, "Sąskaita neturi eilučių")
-    issue_date = data.issue_date or date.today()
-    with transaction.atomic():
-        invoice.series = data.series or invoice.series
-        invoice.year = issue_date.year
-        invoice.number = next_document_number(tenant, "invoice", invoice.series, issue_date.year)
-        invoice.issue_date = issue_date
-        invoice.due_date = data.due_date or invoice.due_date or issue_date + timedelta(days=14)
-        invoice.status = Invoice.Status.ISSUED
-        invoice.save()
+    if data.series:
+        invoice.series = data.series
+    try:
+        issue_invoice(invoice, data.issue_date or date.today(), data.due_date)
+    except ValueError as e:
+        raise HttpError(400, str(e)) from e
     return get_invoice(tenant, invoice.id)
 
 
@@ -177,18 +174,76 @@ def add_payment(request, invoice_id: int, data: PaymentIn):
     return Status(201, payment)
 
 
+@router.post("/invoices/{invoice_id}/send", response={200: dict, 400: dict})
+def send_invoice(request, invoice_id: int, data: SendIn):
+    from apps.mailer.services import queue_invoice_email  # lazy – circular
+
+    invoice = get_invoice(current_tenant(request), invoice_id)
+    if invoice.status == Invoice.Status.DRAFT:
+        raise HttpError(400, "Pirmiausia išrašykite sąskaitą")
+    recipient = data.to or invoice.client.email
+    if not recipient:
+        return Status(400, {"detail": "Nėra gavėjo el. pašto"})
+    outbox = queue_invoice_email(invoice, recipient, data.subject, data.body)
+    return Status(200, {"detail": "Laiškas įtrauktas į eilę", "outbox_id": outbox.id})
+
+
 @router.get("/invoices/{invoice_id}/pdf", response={200: None})
 def invoice_pdf(request, invoice_id: int):
-    from weasyprint import HTML  # lazy: Windows dev be GTK bibliotekų
-
-    tenant = current_tenant(request)
-    invoice = get_invoice(tenant, invoice_id)
-    html = render_to_string(
-        "invoicing/invoice_pdf.html",
-        {"invoice": invoice, "profile": getattr(tenant, "profile", None)},
-    )
-    pdf = HTML(string=html).write_pdf()
+    invoice = get_invoice(current_tenant(request), invoice_id)
+    pdf = generate_invoice_pdf(invoice)
     response = HttpResponse(pdf, content_type="application/pdf")
     filename = invoice.full_number or f"juodrastis-{invoice.pk}"
     response["Content-Disposition"] = f'inline; filename="{filename}.pdf"'
     return response
+
+
+# --- Recurring templates ---
+
+
+@router.get("/recurring", response=list[RecurringOut])
+def list_recurring(request):
+    return (
+        RecurringTemplate.objects.filter(tenant=current_tenant(request))
+        .select_related("client")
+        .prefetch_related("lines")
+    )
+
+
+@router.post("/recurring", response={201: RecurringOut})
+def create_recurring(request, data: RecurringIn):
+    tenant = current_tenant(request)
+    client = get_client(tenant, data.client_id)
+    if not data.lines:
+        raise HttpError(400, "Šablonas turi turėti bent vieną eilutę")
+    with transaction.atomic():
+        tpl = RecurringTemplate.objects.create(
+            tenant=tenant,
+            client=client,
+            **data.model_dump(exclude={"client_id", "lines"}),
+        )
+        for i, line in enumerate(data.lines):
+            tpl.lines.create(**line.model_dump(), order=i)
+    return Status(201, tpl)
+
+
+@router.put("/recurring/{template_id}", response=RecurringOut)
+def update_recurring(request, template_id: int, data: RecurringIn):
+    tenant = current_tenant(request)
+    tpl = get_object_or_404(RecurringTemplate, id=template_id, tenant=tenant)
+    with transaction.atomic():
+        tpl.client = get_client(tenant, data.client_id)
+        for key, value in data.model_dump(exclude={"client_id", "lines"}).items():
+            setattr(tpl, key, value)
+        tpl.save()
+        if data.lines:
+            tpl.lines.all().delete()
+            for i, line in enumerate(data.lines):
+                tpl.lines.create(**line.model_dump(), order=i)
+    return tpl
+
+
+@router.delete("/recurring/{template_id}", response={204: None})
+def delete_recurring(request, template_id: int):
+    get_object_or_404(RecurringTemplate, id=template_id, tenant=current_tenant(request)).delete()
+    return Status(204, None)
