@@ -86,3 +86,62 @@ def test_rule_fallback_warns(api_client, tenant):
     TaxRule.objects.filter(year=2026).delete()
     s = compute_taxes(tenant, 2030)
     assert any("2025" in w for w in s.warnings)
+
+
+def test_months_prorates_min_base(api_client, tenant):
+    paid_invoice(api_client, "3000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025&months=3").json()
+    # minimali bazė = 3 x 1038 = 3114 (ne 12xMMA)
+    assert s["months"] == 3
+    assert s["vsd"]["base"] == "3114.00"
+    assert "3 x MMA" in s["vsd"]["note"]
+    assert len(s["monthly"]) == 3
+
+
+def test_months_limits_income_window(api_client, tenant):
+    paid_invoice(api_client, "1000.00", paid="2025-01-15")
+    paid_invoice(api_client, "2000.00", paid="2025-06-15")
+    s = api_client.get("/api/v1/taxes/summary?year=2025&months=3").json()
+    assert s["income_total"] == "1000.00"
+
+
+def test_insured_elsewhere(api_client, tenant):
+    api_client.put(
+        "/api/v1/profile",
+        {"seller_name": "Tomas IV", "insured_elsewhere": True},
+        content_type="application/json",
+    )
+    paid_invoice(api_client, "3000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    # VSD – be minimumo: bazė = 90% x 2100 = 1890; PSD = 0
+    assert s["vsd"]["base"] == "1890.00"
+    assert s["psd"]["amount"] == "0.00"
+
+
+def test_tax_payments_reduce_remaining(api_client, tenant):
+    paid_invoice(api_client, "3000.00")
+    post_json(
+        api_client,
+        "/api/v1/ledger/entries",
+        {
+            "kind": "expense",
+            "document_date": "2025-02-01",
+            "paid_date": "2025-02-01",
+            "amount_original": "500.00",
+            "deductible": False,
+            "tax_kind": "vsd",
+            "tax_year": 2025,
+        },
+    )
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    assert s["vsd"]["paid"] == "500.00"
+    assert s["vsd"]["remaining"] == str(round(float(s["vsd"]["amount"]) - 500, 2)).ljust(0)
+
+
+def test_monthly_rows_vsd_min(api_client, tenant):
+    paid_invoice(api_client, "3000.00", paid="2025-03-05")
+    s = api_client.get("/api/v1/taxes/summary?year=2025&months=2").json()
+    m1 = s["monthly"][0]
+    # Sausis: pelnas 0 -> VSD mėn. įmoka = 12.52% x MMA = 129.96, PSD = 72.45
+    assert m1["vsd"] == "129.96"
+    assert m1["psd"] == "72.45"

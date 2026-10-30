@@ -22,7 +22,8 @@
 		phone: '',
 		invoice_series: 'SF',
 		accounting_basis: 'cash',
-		deductions_method: 'pct30'
+		deductions_method: 'pct30',
+		insured_elsewhere: false
 	});
 	let smtp = $state({
 		host: '',
@@ -139,6 +140,10 @@
 						</Select.Root>
 					</div>
 				</div>
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" bind:checked={profile.insured_elsewhere} />
+					Dirbu pagal darbo sutartį (Sodra draustas kitur – PSD nemokamas, VSD be minimumo)
+				</label>
 				{#if profileMsg}<p class="text-sm text-green-600">{profileMsg}</p>{/if}
 			</Card.Content>
 			<Card.Footer><Button type="submit">Išsaugoti profilį</Button></Card.Footer>

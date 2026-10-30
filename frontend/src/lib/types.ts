@@ -25,6 +25,7 @@ export interface Profile {
 	invoice_series: string;
 	accounting_basis: 'cash' | 'accrual';
 	deductions_method: 'pct30' | 'actual';
+	insured_elsewhere: boolean;
 }
 
 export interface Client {
@@ -108,6 +109,8 @@ export interface LedgerEntry {
 	exchange_rate: string;
 	amount_eur: string;
 	deductible: boolean;
+	tax_kind: '' | 'gpm' | 'vsd' | 'psd';
+	tax_year: number | null;
 }
 
 export interface JournalRow {
@@ -133,10 +136,21 @@ export interface TaxLine {
 	rate: string;
 	amount: string;
 	note: string;
+	paid: string;
+	remaining: string;
+}
+
+export interface MonthRow {
+	month: number;
+	income: string;
+	profit: string;
+	vsd: string;
+	psd: string;
 }
 
 export interface TaxBreakdown {
 	year: number;
+	months: number;
 	income_total: string;
 	expenses_total: string;
 	deductible_total: string;
@@ -148,6 +162,9 @@ export interface TaxBreakdown {
 	vsd: TaxLine;
 	psd: TaxLine;
 	total: string;
+	paid_total: string;
+	remaining_total: string;
+	monthly: MonthRow[];
 	warnings: string[];
 }
 

@@ -27,6 +27,8 @@ class EntryIn(Schema):
     amount_original: Decimal
     exchange_rate: Decimal = Decimal("1")
     deductible: bool = True
+    tax_kind: LedgerEntry.TaxKind = LedgerEntry.TaxKind.NONE
+    tax_year: int | None = None
 
 
 class EntryOut(Schema):
@@ -42,6 +44,8 @@ class EntryOut(Schema):
     exchange_rate: Decimal
     amount_eur: Decimal
     deductible: bool
+    tax_kind: LedgerEntry.TaxKind
+    tax_year: int | None
 
 
 class JournalRowOut(Schema):

@@ -29,8 +29,16 @@
 		currency: 'EUR',
 		amount_original: '',
 		exchange_rate: '1',
-		deductible: true
+		deductible: true,
+		tax_kind: 'none',
+		tax_year: ''
 	});
+
+	const TAX_KINDS: Record<string, string> = {
+		gpm: 'GPM',
+		vsd: 'VSD',
+		psd: 'PSD'
+	};
 
 	async function load() {
 		[journal, entries] = await Promise.all([
@@ -48,7 +56,9 @@
 			body: {
 				...form,
 				category_id: form.category_id ? Number(form.category_id) : null,
-				paid_date: form.document_date
+				paid_date: form.document_date,
+				tax_kind: form.tax_kind === 'none' ? '' : form.tax_kind,
+				tax_year: form.tax_kind !== 'none' && form.tax_year ? Number(form.tax_year) : null
 			}
 		});
 		open = false;
@@ -157,7 +167,11 @@
 			{#each entries as en (en.id)}
 				<Table.Row>
 					<Table.Cell>{en.document_date}</Table.Cell>
-					<Table.Cell>{en.kind === 'income' ? 'Paj.' : 'Išl.'}</Table.Cell>
+					<Table.Cell>
+						{en.kind === 'income' ? 'Paj.' : 'Išl.'}{en.tax_kind
+							? ` · ${en.tax_kind.toUpperCase()}`
+							: ''}
+					</Table.Cell>
 					<Table.Cell>{en.counterparty}</Table.Cell>
 					<Table.Cell
 						>{en.currency}{en.currency === 'PLN' ? ` @${en.exchange_rate}` : ''}</Table.Cell
@@ -235,8 +249,39 @@
 					≈ {fmtEur(Number(form.amount_original) * Number(form.exchange_rate))} EUR
 				</p>
 			{/if}
+			<div class="grid grid-cols-2 gap-3">
+				<div class="space-y-1.5">
+					<Label>Mokesčio įmoka</Label>
+					<Select.Root type="single" bind:value={form.tax_kind}>
+						<Select.Trigger
+							>{form.tax_kind === 'none' ? 'Ne mokestis' : TAX_KINDS[form.tax_kind]}</Select.Trigger
+						>
+						<Select.Content>
+							<Select.Item value="none" label="Ne mokestis">Ne mokestis</Select.Item>
+							{#each Object.entries(TAX_KINDS) as [v, l] (v)}
+								<Select.Item value={v} label={l}>{l}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</div>
+				{#if form.tax_kind !== 'none'}
+					<div class="space-y-1.5">
+						<Label>Už metus *</Label>
+						<Input
+							type="number"
+							bind:value={form.tax_year}
+							min="2000"
+							placeholder={String(year)}
+							required
+						/>
+					</div>
+				{/if}
+			</div>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" bind:checked={form.deductible} /> Leidžiami atskaitymai
+				{#if form.tax_kind === 'gpm'}<span class="text-muted-foreground"
+						>(GPM nėra atskaitymas)</span
+					>{/if}
 			</label>
 			<Dialog.Footer><Button type="submit">Išsaugoti</Button></Dialog.Footer>
 		</form>

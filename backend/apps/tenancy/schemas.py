@@ -43,6 +43,7 @@ class ProfileIn(Schema):
     invoice_series: str = "SF"
     accounting_basis: SellerProfile.AccountingBasis = SellerProfile.AccountingBasis.CASH
     deductions_method: SellerProfile.DeductionsMethod = SellerProfile.DeductionsMethod.PCT30
+    insured_elsewhere: bool = False
 
 
 class ProfileOut(ProfileIn):

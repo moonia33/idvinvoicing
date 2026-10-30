@@ -72,6 +72,9 @@ class SellerProfile(models.Model):
     deductions_method = models.CharField(
         max_length=10, choices=DeductionsMethod.choices, default=DeductionsMethod.PCT30
     )
+    insured_elsewhere = models.BooleanField(
+        "Draustas kitur (dirba pagal darbo sutartį)", default=False
+    )
 
     def __str__(self):
         return f"{self.seller_name} ({self.tenant})"

@@ -53,7 +53,22 @@ class LedgerEntry(models.Model):
     amount_original = models.DecimalField(max_digits=12, decimal_places=2)
     exchange_rate = models.DecimalField(max_digits=12, decimal_places=6, default=Decimal("1"))
     amount_eur = models.DecimalField(max_digits=12, decimal_places=2, editable=False)
+
+    class TaxKind(models.TextChoices):
+        NONE = "", "—"
+        GPM = "gpm", "GPM"
+        VSD = "vsd", "VSD"
+        PSD = "psd", "PSD"
+
     deductible = models.BooleanField("Leidžiami atskaitymai", default=True)
+    tax_kind = models.CharField(
+        "Mokesčio rūšis",
+        max_length=4,
+        choices=TaxKind.choices,
+        default=TaxKind.NONE,
+        blank=True,
+    )
+    tax_year = models.PositiveIntegerField("Už kuriuos metus mokestis", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

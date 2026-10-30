@@ -21,10 +21,21 @@ class TaxLineOut(Schema):
     rate: Decimal
     amount: Decimal
     note: str
+    paid: Decimal
+    remaining: Decimal
+
+
+class MonthRowOut(Schema):
+    month: int
+    income: Decimal
+    profit: Decimal
+    vsd: Decimal
+    psd: Decimal
 
 
 class TaxBreakdownOut(Schema):
     year: int
+    months: int
     income_total: Decimal
     expenses_total: Decimal
     deductible_total: Decimal
@@ -36,4 +47,7 @@ class TaxBreakdownOut(Schema):
     vsd: TaxLineOut
     psd: TaxLineOut
     total: Decimal
+    paid_total: Decimal
+    remaining_total: Decimal
+    monthly: list[MonthRowOut]
     warnings: list[str]

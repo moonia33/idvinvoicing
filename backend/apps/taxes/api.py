@@ -19,5 +19,5 @@ def tax_rules(request, year: int | None = None):
 
 
 @router.get("/taxes/summary", response=TaxBreakdownOut)
-def tax_summary(request, year: int, psd_paid_elsewhere: bool = False):
-    return compute_taxes(current_tenant(request), year, psd_paid_elsewhere)
+def tax_summary(request, year: int, months: int | None = None, psd_paid_elsewhere: bool = False):
+    return compute_taxes(current_tenant(request), year, months, psd_paid_elsewhere)
