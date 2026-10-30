@@ -1,0 +1,39 @@
+from decimal import Decimal
+
+from ninja import Schema
+
+
+class TaxRuleOut(Schema):
+    year: int
+    gpm_rate: Decimal
+    gpm_soft_cap: Decimal
+    gpm_reduction_coef: Decimal
+    fixed_deduction_rate: Decimal
+    social_base_share: Decimal
+    vsd_rate: Decimal
+    psd_rate: Decimal
+    mma_monthly: Decimal
+    annual_cap: Decimal
+
+
+class TaxLineOut(Schema):
+    base: Decimal
+    rate: Decimal
+    amount: Decimal
+    note: str
+
+
+class TaxBreakdownOut(Schema):
+    year: int
+    income_total: Decimal
+    expenses_total: Decimal
+    deductible_total: Decimal
+    deductions_method: str
+    deductions_applied: Decimal
+    recommended_deductions_method: str
+    profit: Decimal
+    gpm: TaxLineOut
+    vsd: TaxLineOut
+    psd: TaxLineOut
+    total: Decimal
+    warnings: list[str]
