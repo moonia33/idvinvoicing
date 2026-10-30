@@ -93,13 +93,16 @@ def _tax_paid(tenant: Tenant, kind: str, year: int) -> Decimal:
 
 
 def _gpm(profit: Decimal, rule: TaxRule) -> TaxLine:
+    """GPM 2025+: 5% iki flat_cap, linijinis 5->20% iki progressive_cap, 20% virš."""
     if profit <= 0:
         return TaxLine(Decimal("0"), rule.gpm_rate, Decimal("0"))
-    if profit <= rule.gpm_soft_cap:
-        # Lengvatine formulė: P x (gpm_rate - coef x (1 - P/soft_cap))
-        effective = rule.gpm_rate - rule.gpm_reduction_coef * (1 - profit / rule.gpm_soft_cap)
-        return TaxLine(profit, effective, _q(profit * effective), "lengvatinė GPM formulė")
-    return TaxLine(profit, rule.gpm_rate, _q(profit * rule.gpm_rate))
+    if profit <= rule.gpm_flat_cap:
+        return TaxLine(profit, rule.gpm_rate, _q(profit * rule.gpm_rate))
+    if profit <= rule.gpm_progressive_cap:
+        share = (profit - rule.gpm_flat_cap) / (rule.gpm_progressive_cap - rule.gpm_flat_cap)
+        effective = rule.gpm_rate + (rule.gpm_top_rate - rule.gpm_rate) * share
+        return TaxLine(profit, effective, _q(profit * effective), "progresinis GPM tarifas")
+    return TaxLine(profit, rule.gpm_top_rate, _q(profit * rule.gpm_top_rate))
 
 
 def _social(
@@ -107,7 +110,7 @@ def _social(
     rate: Decimal,
     rule: TaxRule,
     months: int,
-    exempt: bool,
+    exempt: bool = False,
     no_minimum: bool = False,
 ) -> TaxLine:
     if exempt or profit <= 0:
@@ -144,6 +147,14 @@ def compute_taxes(
         profile.deductions_method if profile is not None else SellerProfile.DeductionsMethod.PCT30
     )
     insured = bool(getattr(profile, "insured_elsewhere", False))
+    pension = bool(getattr(profile, "pension_accrual", False))
+    vsd_relief = bool(getattr(profile, "vsd_holiday", False))
+    if insured:
+        warnings.append(
+            "Draustas kitur: VSD/PSD be MMA minimumo, bet metų gale nuo 90 % AP vis tiek mokami."
+        )
+    if vsd_relief:
+        warnings.append("Pirmoji veikla: VSD atostogos – įmokos nemokamos iki 12 mėn.")
 
     applied_pct30 = _q(income * rule.fixed_deduction_rate)
     applied = applied_pct30 if method == SellerProfile.DeductionsMethod.PCT30 else deductible
@@ -154,9 +165,15 @@ def compute_taxes(
     )
 
     profit = _q(max(income - applied, Decimal("0")))
+    if income > Decimal("45000"):
+        warnings.append(
+            "Pajamos viršijo 45 000 EUR – gali tekti registruotis PVM mokėtoju "
+            "(nuo sandorio, kuriuo riba viršyta)."
+        )
     gpm = _gpm(profit, rule)
-    vsd = _social(profit, rule.vsd_rate, rule, months, exempt=False, no_minimum=insured)
-    psd = _social(profit, rule.psd_rate, rule, months, exempt=insured or psd_paid_elsewhere)
+    vsd_rate = rule.vsd_rate_pension if pension else rule.vsd_rate
+    vsd = _social(profit, vsd_rate, rule, months, exempt=vsd_relief, no_minimum=insured)
+    psd = _social(profit, rule.psd_rate, rule, months, no_minimum=insured or psd_paid_elsewhere)
 
     for line, kind in ((gpm, "gpm"), (vsd, "vsd"), (psd, "psd")):
         line.paid = _tax_paid(tenant, kind, year)
@@ -173,17 +190,21 @@ def compute_taxes(
             else s["deductible_total"]
         )
         m_profit = _q(max(m_income - m_ded, Decimal("0")))
-        if insured:
-            psd_m = Decimal("0")
-            vsd_m = _q(m_profit * rule.social_base_share * rule.vsd_rate)
+        if vsd_relief:
+            vsd_m = Decimal("0")
+        elif insured:
+            vsd_m = _q(m_profit * rule.social_base_share * vsd_rate)
         else:
-            psd_m = _q(rule.psd_rate * rule.mma_monthly)
             vsd_m = _q(
                 max(
-                    m_profit * rule.social_base_share * rule.vsd_rate,
-                    rule.vsd_rate * rule.mma_monthly,
+                    m_profit * rule.social_base_share * vsd_rate,
+                    vsd_rate * rule.mma_monthly,
                 )
             )
+        if insured:
+            psd_m = _q(m_profit * rule.social_base_share * rule.psd_rate)
+        else:
+            psd_m = _q(rule.psd_rate * rule.mma_monthly)
         monthly.append(MonthRow(m, _q(m_income), m_profit, _q(vsd_m), _q(psd_m)))
 
     paid_total = gpm.paid + vsd.paid + psd.paid

@@ -44,6 +44,8 @@ class ProfileIn(Schema):
     accounting_basis: SellerProfile.AccountingBasis = SellerProfile.AccountingBasis.CASH
     deductions_method: SellerProfile.DeductionsMethod = SellerProfile.DeductionsMethod.PCT30
     insured_elsewhere: bool = False
+    pension_accrual: bool = False
+    vsd_holiday: bool = False
 
 
 class ProfileOut(ProfileIn):

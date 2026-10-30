@@ -179,7 +179,8 @@
 					</Table.Body>
 				</Table.Root>
 				<p class="px-4 pt-1 pb-3 text-xs text-muted-foreground">
-					VSD/PSD – mėnesinės įmokos; draudžiantis kitur PSD = 0, o VSD tik nuo faktinio pelno.
+					VSD/PSD – mėnesinės įmokos; draustiems kitur – be MMA minimumo (metų gale nuo 90 % pelno
+					vis tiek perskaičiuojami).
 				</p>
 			</Card.Content>
 		</Card.Root>

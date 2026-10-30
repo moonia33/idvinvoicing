@@ -36,13 +36,29 @@ def test_summary_pct30(api_client, tenant):
     assert s["deductions_method"] == "pct30"
     assert s["deductions_applied"] == "12000.00"
     assert s["profit"] == "28000.00"
-    # GPM lengvatine formule: 28000 x (0.15 - 0.1 x (1 - 28000/35000)) = 28000 x 0.13 = 3640
-    assert s["gpm"]["amount"] == "3640.00"
+    # GPM 2025+: 5% + 15% x (28000-20000)/22500 = 10,333% -> 2893.33
+    assert s["gpm"]["amount"] == "2893.33"
     # VSD/PSD bazė 90% pelno = 25200 > 12xMMA (12456)
     assert s["vsd"]["base"] == "25200.00"
     assert s["vsd"]["amount"] == "3155.04"
     assert s["psd"]["amount"] == "1758.96"
-    assert s["total"] == "8554.00"
+    assert s["total"] == "7807.33"
+
+
+def test_gpm_flat_and_top_rates(api_client, tenant):
+    # AP 8400 (12000 pajamų su 30%) -> fiksuotas 5%
+    paid_invoice(api_client, "12000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    assert s["profit"] == "8400.00"
+    assert s["gpm"]["rate"] == "0.0500"
+    assert s["gpm"]["amount"] == "420.00"
+
+    # AP virš 42500 -> viršutinis 20%: pajamos 12000+70000=82000, AP=57400
+    paid_invoice(api_client, "70000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    assert s["profit"] == "57400.00"
+    assert s["gpm"]["rate"] == "0.2000"
+    assert s["gpm"]["amount"] == "11480.00"
 
 
 def test_summary_actual_deductions(api_client, tenant):
@@ -76,10 +92,12 @@ def test_min_social_base(api_client, tenant):
     assert "minimali" in s["vsd"]["note"]
 
 
-def test_psd_exempt(api_client, tenant):
-    paid_invoice(api_client, "40000.00")
+def test_psd_paid_elsewhere_no_minimum(api_client, tenant):
+    # psd_paid_elsewhere – tik minimumo atšaukimas; PSD metų gale vis tiek skaičiuojamas
+    paid_invoice(api_client, "3000.00")
     s = api_client.get("/api/v1/taxes/summary?year=2025&psd_paid_elsewhere=true").json()
-    assert s["psd"]["amount"] == "0.00"
+    assert s["psd"]["base"] == "1890.00"
+    assert s["psd"]["amount"] == "131.92"
 
 
 def test_rule_fallback_warns(api_client, tenant):
@@ -113,9 +131,41 @@ def test_insured_elsewhere(api_client, tenant):
     )
     paid_invoice(api_client, "3000.00")
     s = api_client.get("/api/v1/taxes/summary?year=2025").json()
-    # VSD – be minimumo: bazė = 90% x 2100 = 1890; PSD = 0
+    # VSD – be minimumo: bazė = 90% x 2100 = 1890
     assert s["vsd"]["base"] == "1890.00"
-    assert s["psd"]["amount"] == "0.00"
+    # PSD – be minimumo, bet metų gale vis tiek mokamas: 6.98% x 1890 = 131.92
+    assert s["psd"]["base"] == "1890.00"
+    assert s["psd"]["amount"] == "131.92"
+
+
+def test_vsd_holiday(api_client, tenant):
+    api_client.put(
+        "/api/v1/profile",
+        {"seller_name": "Tomas IV", "vsd_holiday": True},
+        content_type="application/json",
+    )
+    paid_invoice(api_client, "3000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    assert s["vsd"]["amount"] == "0.00"
+    assert any("atostogos" in w for w in s["warnings"])
+
+
+def test_pension_accrual_rate(api_client, tenant):
+    api_client.put(
+        "/api/v1/profile",
+        {"seller_name": "Tomas IV", "pension_accrual": True},
+        content_type="application/json",
+    )
+    paid_invoice(api_client, "40000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    assert s["vsd"]["rate"] == "0.1552"
+    assert s["vsd"]["amount"] == "3911.04"  # 25200 x 0.1552
+
+
+def test_vat_threshold_warning(api_client, tenant):
+    paid_invoice(api_client, "50000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    assert any("45 000" in w for w in s["warnings"])
 
 
 def test_tax_payments_reduce_remaining(api_client, tenant):

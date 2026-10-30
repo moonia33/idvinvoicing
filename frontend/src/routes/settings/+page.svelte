@@ -23,7 +23,9 @@
 		invoice_series: 'SF',
 		accounting_basis: 'cash',
 		deductions_method: 'pct30',
-		insured_elsewhere: false
+		insured_elsewhere: false,
+		pension_accrual: false,
+		vsd_holiday: false
 	});
 	let smtp = $state({
 		host: '',
@@ -142,7 +144,16 @@
 				</div>
 				<label class="flex items-center gap-2 text-sm">
 					<input type="checkbox" bind:checked={profile.insured_elsewhere} />
-					Dirbu pagal darbo sutartį (Sodra draustas kitur – PSD nemokamas, VSD be minimumo)
+					Dirbu pagal darbo sutartį (draustas kitur – be MMA minimumo, bet metų gale VSD/PSD nuo 90 %
+					pelno vis tiek skaičiuojami)
+				</label>
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" bind:checked={profile.pension_accrual} />
+					Papildomai kaupiu pensijai (VSD tarifas 15,52 % vietoj 12,52 %)
+				</label>
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" bind:checked={profile.vsd_holiday} />
+					Pirmoji individuali veikla – VSD atostogos (nemokama iki 12 mėn. nuo veiklos pradžios)
 				</label>
 				{#if profileMsg}<p class="text-sm text-green-600">{profileMsg}</p>{/if}
 			</Card.Content>

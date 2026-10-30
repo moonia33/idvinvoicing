@@ -75,6 +75,10 @@ class SellerProfile(models.Model):
     insured_elsewhere = models.BooleanField(
         "Draustas kitur (dirba pagal darbo sutartį)", default=False
     )
+    pension_accrual = models.BooleanField(
+        "Papildomas pensijos kaupimas (VSD 15,52%)", default=False
+    )
+    vsd_holiday = models.BooleanField("Pirmoji veikla – VSD atostogos (iki 12 mėn.)", default=False)
 
     def __str__(self):
         return f"{self.seller_name} ({self.tenant})"

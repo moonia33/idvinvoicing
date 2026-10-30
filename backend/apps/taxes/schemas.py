@@ -6,11 +6,13 @@ from ninja import Schema
 class TaxRuleOut(Schema):
     year: int
     gpm_rate: Decimal
-    gpm_soft_cap: Decimal
-    gpm_reduction_coef: Decimal
+    gpm_flat_cap: Decimal
+    gpm_progressive_cap: Decimal
+    gpm_top_rate: Decimal
     fixed_deduction_rate: Decimal
     social_base_share: Decimal
     vsd_rate: Decimal
+    vsd_rate_pension: Decimal
     psd_rate: Decimal
     mma_monthly: Decimal
     annual_cap: Decimal

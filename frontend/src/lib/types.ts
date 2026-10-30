@@ -26,6 +26,8 @@ export interface Profile {
 	accounting_basis: 'cash' | 'accrual';
 	deductions_method: 'pct30' | 'actual';
 	insured_elsewhere: boolean;
+	pension_accrual: boolean;
+	vsd_holiday: boolean;
 }
 
 export interface Client {
