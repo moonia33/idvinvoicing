@@ -1,7 +1,11 @@
+import base64
+from io import BytesIO
+
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
-from ninja import Router, Status
+from ninja import File, Router, Status
 from ninja.errors import HttpError
+from ninja.files import UploadedFile
 
 from apps.tenancy.models import SellerProfile, Tenant, TenantMembership
 from apps.tenancy.schemas import (
@@ -105,4 +109,43 @@ def get_profile(request):
 def upsert_profile(request, data: ProfileIn):
     tenant = current_tenant(request)
     profile, _ = SellerProfile.objects.update_or_create(tenant=tenant, defaults=data.model_dump())
+    return profile
+
+
+MAX_LOGO_BYTES = 3 * 1024 * 1024  # 3 MB – iki sumažinimo
+
+
+@router.post("/profile/logo", response=ProfileOut)
+def upload_logo(request, file: UploadedFile = File(...)):  # noqa: B008
+    tenant = current_tenant(request)
+    data = file.read()
+    if len(data) > MAX_LOGO_BYTES:
+        raise HttpError(400, "Failas per didelis (maks. 3 MB)")
+    try:
+        from PIL import Image
+
+        img = Image.open(BytesIO(data))
+        img = img.convert("RGBA") if img.mode in ("P", "LA") else img
+        img.thumbnail((480, 480))
+        buf = BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+    except Exception:
+        raise HttpError(400, "Neteisingas paveikslėlio formatas (leidžiama PNG/JPG/WebP)") from None
+    profile, _ = SellerProfile.objects.get_or_create(
+        tenant=tenant, defaults={"seller_name": tenant.name}
+    )
+    profile.logo = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    profile.save(update_fields=["logo"])
+    return profile
+
+
+@router.delete("/profile/logo", response=ProfileOut)
+def delete_logo(request):
+    tenant = current_tenant(request)
+    try:
+        profile = tenant.profile
+    except SellerProfile.DoesNotExist:
+        raise HttpError(404, "Profilis nesukurtas") from None
+    profile.logo = ""
+    profile.save(update_fields=["logo"])
     return profile

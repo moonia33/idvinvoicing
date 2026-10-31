@@ -80,6 +80,11 @@ class SellerProfile(models.Model):
     )
     vsd_holiday = models.BooleanField("Pirmoji veikla – VSD atostogos (iki 12 mėn.)", default=False)
     activity_start = models.DateField("Individualios veiklos pradžios data", null=True, blank=True)
+    logo = models.TextField(
+        "Logotipas (data:image/...;base64,...)",
+        blank=True,
+        help_text="Rodomas sąskaitose ir programėlėje",
+    )
 
     def __str__(self):
         return f"{self.seller_name} ({self.tenant})"

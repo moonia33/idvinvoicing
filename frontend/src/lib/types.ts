@@ -29,6 +29,7 @@ export interface Profile {
 	pension_accrual: boolean;
 	vsd_holiday: boolean;
 	activity_start: string | null;
+	logo?: string;
 }
 
 export interface Contact {

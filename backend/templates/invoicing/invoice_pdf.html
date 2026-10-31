@@ -41,6 +41,7 @@
       <td>
         <div class="party-label">Pardavėjas</div>
         {% if profile %}
+          {% if profile.logo %}<img src="{{ profile.logo }}" style="max-width:150px;max-height:70px;display:block;margin-bottom:6px;">{% endif %}
           <strong>{{ profile.seller_name }}</strong><br>
           {% if profile.activity_code %}Veiklos kodas: {{ profile.activity_code }}<br>{% endif %}
           {% if profile.personal_code %}Asmens kodas: {{ profile.personal_code }}<br>{% endif %}

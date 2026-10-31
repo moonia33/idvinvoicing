@@ -1,8 +1,17 @@
+import io
+
 import pytest
+from PIL import Image
 
 from tests.conftest import post_json
 
 pytestmark = pytest.mark.django_db
+
+
+def _png() -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (600, 200), "red").save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def test_health(client):
@@ -53,3 +62,20 @@ def test_profile_upsert(api_client, tenant):
     assert resp.status_code == 200
     assert resp.json()["iban"] == "LT999"
     assert api_client.get("/api/v1/profile").json()["accounting_basis"] == "accrual"
+
+
+def test_profile_logo_upload_and_delete(api_client, tenant):
+    resp = api_client.post(
+        "/api/v1/profile/logo", {"file": io.BytesIO(_png())}, format="multipart"
+    )
+    assert resp.status_code == 200
+    logo = resp.json()["logo"]
+    assert logo.startswith("data:image/png;base64,")
+    assert api_client.get("/api/v1/profile").json()["logo"] == logo
+
+    resp = api_client.post("/api/v1/profile/logo", {"file": io.BytesIO(b"abc")})
+    assert resp.status_code == 400
+
+    resp = api_client.delete("/api/v1/profile/logo")
+    assert resp.status_code == 200
+    assert resp.json()["logo"] == ""

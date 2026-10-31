@@ -52,4 +52,4 @@ class ProfileIn(Schema):
 
 
 class ProfileOut(ProfileIn):
-    pass
+    logo: str = ""

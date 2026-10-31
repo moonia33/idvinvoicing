@@ -23,8 +23,20 @@
 		Truck
 	} from '@lucide/svelte';
 	import type { LayoutProps } from './$types';
+	import { api } from '#lib/api';
+	import type { Profile } from '#lib/types';
 
 	let { children }: LayoutProps = $props();
+
+	let tenantLogo = $state('');
+	$effect(() => {
+		const tenantId = auth.currentTenant?.id;
+		tenantLogo = '';
+		if (!tenantId) return;
+		api<Profile>('/profile')
+			.then((p) => (tenantLogo = p.logo ?? ''))
+			.catch(() => {});
+	});
 
 	const NAV = [
 		{ href: '/', label: 'Suvestinė', icon: LayoutDashboard },
@@ -72,7 +84,12 @@
 {:else}
 	<div class="flex min-h-screen">
 		<aside class="flex w-60 flex-col border-r bg-muted/30">
-			<div class="px-4 py-4 text-lg font-semibold">IDV Apskaita</div>
+			<div class="flex items-center gap-2 px-4 py-4">
+				{#if tenantLogo}
+					<img src={tenantLogo} alt="" class="h-8 max-w-12 object-contain" />
+				{/if}
+				<span class="text-lg font-semibold">IDV Apskaita</span>
+			</div>
 			<nav class="flex-1 space-y-0.5 px-2">
 				{#each NAV as item (item.href)}
 					{@const Icon = item.icon}

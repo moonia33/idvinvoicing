@@ -21,14 +21,18 @@ export async function api<T = unknown>(
 	path: string,
 	options: { method?: string; body?: unknown } = {}
 ): Promise<T> {
+	const isForm = options.body instanceof FormData;
 	const resp = await fetch(`${BASE}${path}`, {
 		method: options.method ?? 'GET',
 		credentials: 'include',
 		headers: {
-			...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+			...(options.body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : {}),
 			...(options.method && options.method !== 'GET' ? { 'X-CSRFToken': csrfToken() } : {})
 		},
-		body: options.body !== undefined ? JSON.stringify(options.body) : undefined
+		body:
+			options.body !== undefined
+				? ((isForm ? options.body : JSON.stringify(options.body)) as BodyInit)
+				: undefined
 	});
 	if (!resp.ok) {
 		let detail = `Klaida ${resp.status}`;

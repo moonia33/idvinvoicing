@@ -39,6 +39,27 @@
 	});
 	let profileMsg = $state('');
 	let smtpMsg = $state('');
+	let logoMsg = $state('');
+
+	async function uploadLogo(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		const fd = new FormData();
+		fd.append('file', file);
+		try {
+			profile = await api<Profile>('/profile/logo', { method: 'POST', body: fd });
+			logoMsg = 'Logotipas įkeltas.';
+		} catch (err) {
+			logoMsg = err instanceof Error ? err.message : 'Klaida įkeliant logotipą';
+		}
+		input.value = '';
+	}
+
+	async function removeLogo() {
+		profile = await api<Profile>('/profile/logo', { method: 'DELETE' });
+		logoMsg = 'Logotipas pašalintas.';
+	}
 
 	const BASIS: Record<string, string> = { cash: 'Pinigų principas', accrual: 'Kaupimo principas' };
 	const DED: Record<string, string> = { pct30: '30% pajamų', actual: 'Faktinės išlaidos' };
@@ -87,6 +108,37 @@
 		>
 		<form onsubmit={saveProfile}>
 			<Card.Content class="space-y-3">
+				<div class="space-y-1.5">
+					<Label>Logotipas</Label>
+					<div class="flex items-center gap-3">
+						{#if profile.logo}
+							<img
+								src={profile.logo}
+								alt="Veiklos logotipas"
+								class="h-14 w-auto rounded border bg-white object-contain p-1"
+							/>
+							<Button type="button" variant="outline" size="sm" onclick={removeLogo}
+								>Pašalinti</Button
+							>
+						{:else}
+							<div
+								class="flex h-14 w-24 items-center justify-center rounded border border-dashed text-xs text-muted-foreground"
+							>
+								Nėra
+							</div>
+						{/if}
+						<label
+							class="cursor-pointer rounded-md border border-input bg-secondary px-3 py-1.5 text-sm font-medium hover:bg-secondary/80"
+						>
+							Įkelti…
+							<input type="file" accept="image/*" class="hidden" onchange={uploadLogo} />
+						</label>
+					</div>
+					<p class="text-xs text-muted-foreground">
+						PNG/JPG iki 3 MB – rodomas sąskaitų PDF ir šoninėje juostoje
+					</p>
+					{#if logoMsg}<p class="text-sm text-muted-foreground">{logoMsg}</p>{/if}
+				</div>
 				<div class="space-y-1.5">
 					<Label>Pavadinimas / vardas *</Label><Input bind:value={profile.seller_name} required />
 				</div>
