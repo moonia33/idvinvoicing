@@ -244,7 +244,7 @@ def compute_taxes(
         deductions_applied=applied,
         recommended_deductions_method=recommended,
         taxable_income=taxable_income,
-        net_earning=_q(taxable_income - gpm.amount - vsd.amount - psd.amount),
+        net_earning=_q(income - gpm.amount - vsd.amount - psd.amount),
         gpm=gpm,
         vsd=vsd,
         psd=psd,

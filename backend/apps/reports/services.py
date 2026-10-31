@@ -82,7 +82,7 @@ def taxes_workbook(tenant: Tenant, year: int, psd_paid_elsewhere: bool = False) 
         ("VSD", t.vsd.amount, f"bazė {t.vsd.base} – {t.vsd.note}"),
         ("PSD", t.psd.amount, f"bazė {t.psd.base} – {t.psd.note}"),
         ("Iš viso mokesčių", t.total),
-        ("Grynas uždarbis (AP − mokesčiai)", t.net_earning),
+        ("Grynas uždarbis (pajamos − mokesčiai)", t.net_earning),
     ]
     for row in rows:
         ws.append([row[0], float(row[1]), row[2] if len(row) > 2 else ""])
