@@ -134,7 +134,7 @@
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
-			{#each journal?.rows ?? [] as r (r.date + r.description)}
+			{#each journal?.rows ?? [] as r, i (i)}
 				<Table.Row>
 					<Table.Cell>{r.date}</Table.Cell>
 					<Table.Cell
