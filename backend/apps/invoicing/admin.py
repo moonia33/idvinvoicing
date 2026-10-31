@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from apps.invoicing.models import (
-    Client,
+    Counterparty,
     Invoice,
     InvoiceLine,
     Payment,
@@ -11,17 +11,26 @@ from apps.invoicing.models import (
 )
 
 
-@admin.register(Client)
-class ClientAdmin(admin.ModelAdmin):
-    list_display = ["name", "tenant", "code", "email"]
-    list_filter = ["tenant"]
+@admin.register(Counterparty)
+class CounterpartyAdmin(admin.ModelAdmin):
+    list_display = ["name", "tenant", "code", "email", "is_client", "is_supplier"]
+    list_filter = ["tenant", "is_client", "is_supplier"]
     search_fields = ["name", "code"]
 
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
-    list_display = ["name", "tenant", "code", "unit", "unit_price", "active"]
-    list_filter = ["tenant", "active"]
+    list_display = [
+        "name",
+        "tenant",
+        "code",
+        "unit",
+        "unit_price",
+        "is_sale",
+        "is_purchase",
+        "active",
+    ]
+    list_filter = ["tenant", "active", "is_sale", "is_purchase"]
     search_fields = ["name", "code"]
 
 

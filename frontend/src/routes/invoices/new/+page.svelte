@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
-	import type { Client, Invoice, Service } from '#lib/types';
+	import type { Contact, Invoice, Service } from '#lib/types';
 	import { fmtEur, UNITS } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
@@ -29,7 +29,7 @@
 		service_id: ''
 	});
 
-	let clients = $state<Client[]>([]);
+	let clients = $state<Contact[]>([]);
 	let services = $state<Service[]>([]);
 	let clientId = $state('');
 	let issueDate = $state(new Date().toISOString().slice(0, 10));
@@ -50,8 +50,8 @@
 
 	onMount(async () => {
 		[clients, services] = await Promise.all([
-			api<Client[]>('/clients'),
-			api<Service[]>('/services')
+			api<Contact[]>('/clients'),
+			api<Service[]>('/services?usage=sale')
 		]);
 	});
 
@@ -85,7 +85,7 @@
 
 	async function createClient(e: SubmitEvent) {
 		e.preventDefault();
-		const c = await api<Client>('/clients', { method: 'POST', body: clientForm });
+		const c = await api<Contact>('/clients', { method: 'POST', body: clientForm });
 		clients = [...clients, c];
 		clientId = String(c.id);
 		clientDialog = false;

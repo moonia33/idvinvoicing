@@ -31,13 +31,15 @@ export interface Profile {
 	activity_start: string | null;
 }
 
-export interface Client {
+export interface Contact {
 	id: number;
 	name: string;
 	code: string;
 	vat_code: string;
 	email: string;
 	address: string;
+	is_client: boolean;
+	is_supplier: boolean;
 }
 
 export interface InvoiceLine {
@@ -71,12 +73,14 @@ export interface Service {
 	category_id: number | null;
 	unit: string;
 	unit_price: string;
+	is_sale: boolean;
+	is_purchase: boolean;
 	active: boolean;
 }
 
 export interface Invoice {
 	id: number;
-	client: Client;
+	client: Contact;
 	series: string;
 	year: number | null;
 	number: number | null;
@@ -90,15 +94,6 @@ export interface Invoice {
 	paid_total: string;
 	lines: InvoiceLine[];
 	payments: Payment[];
-}
-
-export interface Supplier {
-	id: number;
-	name: string;
-	code: string;
-	vat_code: string;
-	email: string;
-	address: string;
 }
 
 export type PurchaseDocType = '' | 'kio' | 'ppk';
@@ -127,7 +122,7 @@ export interface PurchasePayment {
 
 export interface Purchase {
 	id: number;
-	supplier: Supplier;
+	supplier: Contact;
 	doc_number: string;
 	document_date: string;
 	due_date: string | null;
@@ -235,7 +230,7 @@ export interface SmtpSettings {
 
 export interface RecurringTemplate {
 	id: number;
-	client: Client;
+	client: Contact;
 	series: string;
 	frequency: 'monthly' | 'quarterly' | 'yearly';
 	next_run_date: string;

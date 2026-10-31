@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '#lib/api';
-	import type { Supplier } from '#lib/types';
+	import type { Contact } from '#lib/types';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
 	import { Label } from '#lib/components/ui/label';
@@ -11,33 +11,61 @@
 	import { Textarea } from '#lib/components/ui/textarea';
 	import { Trash2 } from '@lucide/svelte';
 
-	let suppliers = $state<Supplier[]>([]);
+	let suppliers = $state<Contact[]>([]);
 	let open = $state(false);
-	let editing = $state<Supplier | null>(null);
-	let form = $state({ name: '', code: '', vat_code: '', email: '', address: '' });
+	let editing = $state<Contact | null>(null);
+	let form = $state({
+		name: '',
+		code: '',
+		vat_code: '',
+		email: '',
+		address: '',
+		is_client: false,
+		is_supplier: true
+	});
 	let error = $state('');
 
 	async function load() {
-		suppliers = await api<Supplier[]>('/suppliers');
+		suppliers = await api<Contact[]>('/suppliers');
 	}
 
 	onMount(load);
 
 	function openCreate() {
 		editing = null;
-		form = { name: '', code: '', vat_code: '', email: '', address: '' };
+		form = {
+			name: '',
+			code: '',
+			vat_code: '',
+			email: '',
+			address: '',
+			is_client: false,
+			is_supplier: true
+		};
 		open = true;
 	}
 
-	function openEdit(s: Supplier) {
+	function openEdit(s: Contact) {
 		editing = s;
-		form = { name: s.name, code: s.code, vat_code: s.vat_code, email: s.email, address: s.address };
+		form = {
+			name: s.name,
+			code: s.code,
+			vat_code: s.vat_code,
+			email: s.email,
+			address: s.address,
+			is_client: s.is_client,
+			is_supplier: s.is_supplier
+		};
 		open = true;
 	}
 
 	async function save(e: SubmitEvent) {
 		e.preventDefault();
 		error = '';
+		if (!form.is_client && !form.is_supplier) {
+			error = 'Pažymėkite bent vieną rolę (klientas arba tiekėjas)';
+			return;
+		}
 		try {
 			if (editing) {
 				await api(`/suppliers/${editing.id}`, { method: 'PUT', body: form });
@@ -51,7 +79,7 @@
 		}
 	}
 
-	async function remove(s: Supplier) {
+	async function remove(s: Contact) {
 		if (!confirm(`Ištrinti tiekėją „${s.name}“?`)) return;
 		await api(`/suppliers/${s.id}`, { method: 'DELETE' });
 		await load();
@@ -124,6 +152,14 @@
 			</div>
 			<div class="space-y-1.5">
 				<Label>Adresas</Label><Textarea bind:value={form.address} rows={2} />
+			</div>
+			<div class="flex gap-4 text-sm">
+				<label class="flex items-center gap-2">
+					<input type="checkbox" bind:checked={form.is_client} /> Klientas
+				</label>
+				<label class="flex items-center gap-2">
+					<input type="checkbox" bind:checked={form.is_supplier} /> Tiekėjas
+				</label>
 			</div>
 			{#if error}<p class="text-sm text-destructive">{error}</p>{/if}
 			<Dialog.Footer>

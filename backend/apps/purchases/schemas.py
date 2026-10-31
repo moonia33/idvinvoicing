@@ -3,19 +3,8 @@ from decimal import Decimal
 
 from ninja import Schema
 
+from apps.invoicing.schemas import ContactOut
 from apps.purchases.models import Purchase, PurchasePayment
-
-
-class SupplierIn(Schema):
-    name: str
-    code: str = ""
-    vat_code: str = ""
-    email: str = ""
-    address: str = ""
-
-
-class SupplierOut(SupplierIn):
-    id: int
 
 
 class PurchaseLineIn(Schema):
@@ -67,7 +56,7 @@ class PurchasePaymentOut(Schema):
 
 class PurchaseOut(Schema):
     id: int
-    supplier: SupplierOut
+    supplier: ContactOut
     doc_number: str
     document_date: date
     due_date: date | None

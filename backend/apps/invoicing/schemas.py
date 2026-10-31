@@ -6,15 +6,17 @@ from ninja import Schema
 from apps.invoicing.models import Invoice, Payment, RecurringTemplate
 
 
-class ClientIn(Schema):
+class ContactIn(Schema):
     name: str
     code: str = ""
     vat_code: str = ""
     email: str = ""
     address: str = ""
+    is_client: bool = False
+    is_supplier: bool = False
 
 
-class ClientOut(ClientIn):
+class ContactOut(ContactIn):
     id: int
 
 
@@ -24,6 +26,8 @@ class ServiceIn(Schema):
     category_id: int | None = None
     unit: str = "vnt."
     unit_price: Decimal
+    is_sale: bool = True
+    is_purchase: bool = False
     active: bool = True
 
 
@@ -71,7 +75,7 @@ class IssueIn(Schema):
 
 class InvoiceOut(Schema):
     id: int
-    client: ClientOut
+    client: ContactOut
     series: str
     year: int | None
     number: int | None
@@ -108,7 +112,7 @@ class RecurringIn(Schema):
 
 class RecurringOut(Schema):
     id: int
-    client: ClientOut
+    client: ContactOut
     series: str
     frequency: RecurringTemplate.Frequency
     next_run_date: date

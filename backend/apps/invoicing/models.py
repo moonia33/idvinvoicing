@@ -5,13 +5,17 @@ from django.db import models
 from apps.tenancy.models import Tenant
 
 
-class Client(models.Model):
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="clients")
+class Counterparty(models.Model):
+    """Bendra kontaktų lentelė: klientai (pardavimai) ir tiekėjai (pirkimai)."""
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="counterparties")
     name = models.CharField(max_length=200)
     code = models.CharField("Įmonės / asmens kodas", max_length=50, blank=True)
     vat_code = models.CharField("PVM kodas", max_length=50, blank=True)
     email = models.EmailField(blank=True)
     address = models.CharField(max_length=300, blank=True)
+    is_client = models.BooleanField("Klientas", default=True)
+    is_supplier = models.BooleanField("Tiekėjas", default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -22,7 +26,7 @@ class Client(models.Model):
 
 
 class Service(models.Model):
-    """Prekės/paslaugos katalogo įrašas – greitas sąskaitų eilučių pildymas."""
+    """Prekės/paslaugos katalogo įrašas – eilučių pildymas sąskaitose ir pirkimuose."""
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="services")
     category = models.ForeignKey(
@@ -31,12 +35,13 @@ class Service(models.Model):
         null=True,
         blank=True,
         related_name="services",
-        limit_choices_to={"kind": "income"},
     )
     code = models.CharField("Prekės/paslaugos kodas", max_length=50, blank=True)
     name = models.CharField(max_length=200)
     unit = models.CharField("Vienetas", max_length=20, default="vnt.")
     unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    is_sale = models.BooleanField("Pardavimams", default=True)
+    is_purchase = models.BooleanField("Pirkimams", default=False)
     active = models.BooleanField(default=True)
 
     class Meta:
@@ -55,7 +60,9 @@ class Invoice(models.Model):
         CANCELLED = "cancelled", "Atšaukta"
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="invoices")
-    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="invoices")
+    client = models.ForeignKey(
+        Counterparty, on_delete=models.PROTECT, related_name="invoices"
+    )
     series = models.CharField(max_length=10, default="SF")
     year = models.PositiveIntegerField(null=True, blank=True)
     number = models.PositiveIntegerField(null=True, blank=True)
@@ -162,7 +169,9 @@ class RecurringTemplate(models.Model):
         YEARLY = "yearly", "Kas metus"
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="recurring_templates")
-    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="recurring_templates")
+    client = models.ForeignKey(
+        Counterparty, on_delete=models.PROTECT, related_name="recurring_templates"
+    )
     series = models.CharField(max_length=10, default="SF")
     frequency = models.CharField(max_length=10, choices=Frequency.choices)
     next_run_date = models.DateField()

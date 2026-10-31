@@ -4,15 +4,15 @@ from django.shortcuts import get_object_or_404
 from ninja import Router, Status
 from ninja.errors import HttpError
 
+from apps.invoicing.models import Counterparty
+from apps.invoicing.schemas import ContactIn, ContactOut
 from apps.ledger.models import Category
-from apps.purchases.models import Purchase, PurchasePayment, Supplier
+from apps.purchases.models import Purchase, PurchasePayment
 from apps.purchases.schemas import (
     PurchaseIn,
     PurchaseOut,
     PurchasePaymentIn,
     PurchasePaymentOut,
-    SupplierIn,
-    SupplierOut,
 )
 from apps.purchases.services import generate_kio_pdf, next_kio_number
 from apps.tenancy.api import current_tenant
@@ -21,8 +21,8 @@ from apps.tenancy.models import Tenant
 router = Router()
 
 
-def get_supplier(tenant: Tenant, supplier_id: int) -> Supplier:
-    return get_object_or_404(Supplier, id=supplier_id, tenant=tenant)
+def get_supplier(tenant: Tenant, supplier_id: int) -> Counterparty:
+    return get_object_or_404(Counterparty, id=supplier_id, tenant=tenant)
 
 
 def get_purchase(tenant: Tenant, purchase_id: int) -> Purchase:
@@ -35,29 +35,35 @@ def get_purchase(tenant: Tenant, purchase_id: int) -> Purchase:
     )
 
 
-# --- Suppliers ---
+# --- Suppliers (kontaktai su is_supplier=True; bendra lentelė su klientais) ---
 
 
-@router.get("/suppliers", response=list[SupplierOut])
+@router.get("/suppliers", response=list[ContactOut])
 def list_suppliers(request):
-    return Supplier.objects.filter(tenant=current_tenant(request))
+    return Counterparty.objects.filter(tenant=current_tenant(request), is_supplier=True)
 
 
-@router.post("/suppliers", response={201: SupplierOut})
-def create_supplier(request, data: SupplierIn):
-    supplier = Supplier.objects.create(tenant=current_tenant(request), **data.model_dump())
-    return Status(201, supplier)
+@router.post("/suppliers", response={201: ContactOut})
+def create_supplier(request, data: ContactIn):
+    values = data.model_dump()
+    values["is_supplier"] = True
+    contact = Counterparty.objects.create(tenant=current_tenant(request), **values)
+    return Status(201, contact)
 
 
-@router.get("/suppliers/{supplier_id}", response=SupplierOut)
+@router.get("/suppliers/{supplier_id}", response=ContactOut)
 def get_supplier_view(request, supplier_id: int):
     return get_supplier(current_tenant(request), supplier_id)
 
 
-@router.put("/suppliers/{supplier_id}", response=SupplierOut)
-def update_supplier(request, supplier_id: int, data: SupplierIn):
+@router.put("/suppliers/{supplier_id}", response=ContactOut)
+def update_supplier(request, supplier_id: int, data: ContactIn):
     supplier = get_supplier(current_tenant(request), supplier_id)
-    for key, value in data.model_dump().items():
+    values = data.model_dump()
+    if not values["is_client"] and not values["is_supplier"]:
+        values["is_client"] = supplier.is_client
+        values["is_supplier"] = supplier.is_supplier
+    for key, value in values.items():
         setattr(supplier, key, value)
     supplier.save()
     return supplier

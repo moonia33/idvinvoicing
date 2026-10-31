@@ -46,7 +46,12 @@
 
 	async function cancel() {
 		if (!confirm('Anuliuoti sąskaitą?')) return;
-		invoice = await api<Invoice>(`/invoices/${id}/cancel`, { method: 'POST' });
+		error = '';
+		try {
+			invoice = await api<Invoice>(`/invoices/${id}/cancel`, { method: 'POST' });
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Klaida';
+		}
 	}
 
 	async function addPayment(e: SubmitEvent) {

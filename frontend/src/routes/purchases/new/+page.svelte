@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
-	import type { Category, Purchase, Supplier } from '#lib/types';
+	import type { Category, Contact, Purchase, Service } from '#lib/types';
 	import { fmtEur, UNITS, CURRENCIES } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
@@ -19,15 +19,18 @@
 		quantity: string;
 		unit: string;
 		unit_price: string;
+		service_id: string;
 	};
 	const emptyLine = (): Line => ({
 		description: '',
 		quantity: '1',
 		unit: 'vnt.',
-		unit_price: ''
+		unit_price: '',
+		service_id: ''
 	});
 
-	let suppliers = $state<Supplier[]>([]);
+	let suppliers = $state<Contact[]>([]);
+	let services = $state<Service[]>([]);
 	let categories = $state<Category[]>([]);
 	let supplierId = $state('');
 	let docNumber = $state('');
@@ -44,11 +47,15 @@
 
 	let supplierDialog = $state(false);
 	let supplierForm = $state({ name: '', code: '', vat_code: '', email: '', address: '' });
+	let serviceDialog = $state(false);
+	let serviceForm = $state({ name: '', code: '', unit: 'vnt.', unit_price: '' });
+	let serviceLineIdx = $state(0);
 
 	onMount(async () => {
-		[suppliers, categories] = await Promise.all([
-			api<Supplier[]>('/suppliers'),
-			api<Category[]>('/ledger/categories?kind=expense')
+		[suppliers, categories, services] = await Promise.all([
+			api<Contact[]>('/suppliers'),
+			api<Category[]>('/ledger/categories?kind=expense'),
+			api<Service[]>('/services?usage=purchase')
 		]);
 	});
 
@@ -67,11 +74,37 @@
 
 	async function createSupplier(e: SubmitEvent) {
 		e.preventDefault();
-		const s = await api<Supplier>('/suppliers', { method: 'POST', body: supplierForm });
+		const s = await api<Contact>('/suppliers', { method: 'POST', body: supplierForm });
 		suppliers = [...suppliers, s];
 		supplierId = String(s.id);
 		supplierDialog = false;
 		supplierForm = { name: '', code: '', vat_code: '', email: '', address: '' };
+	}
+
+	function pickService(i: number, serviceId: string | undefined) {
+		const s = services.find((x) => String(x.id) === serviceId);
+		if (!s) return;
+		lines[i].description = s.name;
+		lines[i].unit = s.unit;
+		lines[i].unit_price = s.unit_price;
+		lines[i].service_id = serviceId ?? '';
+	}
+
+	function openServiceDialog(i: number) {
+		serviceLineIdx = i;
+		serviceForm = { name: '', code: '', unit: 'vnt.', unit_price: '' };
+		serviceDialog = true;
+	}
+
+	async function createService(e: SubmitEvent) {
+		e.preventDefault();
+		const s = await api<Service>('/services', {
+			method: 'POST',
+			body: { ...serviceForm, is_sale: false, is_purchase: true }
+		});
+		services = [...services, s];
+		pickService(serviceLineIdx, String(s.id));
+		serviceDialog = false;
 	}
 
 	async function save(e: SubmitEvent) {
@@ -215,6 +248,36 @@
 				<div class="space-y-2">
 					{#each lines as line, i (i)}
 						<div class="flex items-center gap-2">
+							<Select.Root
+								type="single"
+								value={line.service_id}
+								onValueChange={(v) => pickService(i, v)}
+							>
+								<Select.Trigger class="w-48">
+									{services.find((s) => String(s.id) === line.service_id)?.name ?? 'Iš katalogo…'}
+								</Select.Trigger>
+								<Select.Content>
+									{#each services as s (s.id)}
+										<Select.Item value={String(s.id)} label={s.name}>
+											{s.code ? `${s.code} ` : ''}{s.name} – {fmtEur(s.unit_price)}
+										</Select.Item>
+									{/each}
+									{#if services.length === 0}
+										<div class="px-3 py-2 text-sm text-muted-foreground">
+											Katalogas tuščias – sukurkite „+“
+										</div>
+									{/if}
+								</Select.Content>
+							</Select.Root>
+							<Button
+								variant="outline"
+								size="icon"
+								type="button"
+								onclick={() => openServiceDialog(i)}
+								title="Nauja prekė/paslauga"
+							>
+								<Plus class="size-4" />
+							</Button>
 							<Input
 								class="flex-1"
 								placeholder="Aprašymas"
@@ -302,6 +365,41 @@
 			</div>
 			<div class="space-y-1.5">
 				<Label>El. paštas</Label><Input type="email" bind:value={supplierForm.email} />
+			</div>
+			<Dialog.Footer><Button type="submit">Sukurti</Button></Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={serviceDialog}>
+	<Dialog.Content>
+		<Dialog.Header><Dialog.Title>Nauja prekė/paslauga (pirkimams)</Dialog.Title></Dialog.Header>
+		<form onsubmit={createService} class="space-y-3">
+			<div class="grid grid-cols-3 gap-3">
+				<div class="col-span-2 space-y-1.5">
+					<Label>Pavadinimas *</Label><Input bind:value={serviceForm.name} required />
+				</div>
+				<div class="space-y-1.5"><Label>Kodas</Label><Input bind:value={serviceForm.code} /></div>
+			</div>
+			<div class="grid grid-cols-2 gap-3">
+				<div class="space-y-1.5">
+					<Label>Vienetas</Label>
+					<Select.Root type="single" bind:value={serviceForm.unit}>
+						<Select.Trigger>{serviceForm.unit}</Select.Trigger>
+						<Select.Content>
+							{#each UNITS as u (u)}<Select.Item value={u} label={u}>{u}</Select.Item>{/each}
+						</Select.Content>
+					</Select.Root>
+				</div>
+				<div class="space-y-1.5">
+					<Label>Kaina *</Label><Input
+						type="number"
+						step="0.01"
+						min="0"
+						bind:value={serviceForm.unit_price}
+						required
+					/>
+				</div>
 			</div>
 			<Dialog.Footer><Button type="submit">Sukurti</Button></Dialog.Footer>
 		</form>

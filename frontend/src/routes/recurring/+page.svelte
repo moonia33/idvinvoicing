@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '#lib/api';
-	import type { Client, RecurringTemplate } from '#lib/types';
+	import type { Contact, RecurringTemplate } from '#lib/types';
 	import { fmtEur, fmtDate, FREQ_LABELS } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
 	import { Badge } from '#lib/components/ui/badge';
@@ -14,7 +14,7 @@
 	import { Trash2 } from '@lucide/svelte';
 
 	let templates = $state<RecurringTemplate[]>([]);
-	let clients = $state<Client[]>([]);
+	let clients = $state<Contact[]>([]);
 	let open = $state(false);
 	let form = $state({
 		client_id: '',
@@ -29,7 +29,7 @@
 	async function load() {
 		[templates, clients] = await Promise.all([
 			api<RecurringTemplate[]>('/recurring'),
-			api<Client[]>('/clients')
+			api<Contact[]>('/clients')
 		]);
 	}
 

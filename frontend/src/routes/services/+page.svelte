@@ -23,6 +23,8 @@
 		category_id: '',
 		unit: 'vnt.',
 		unit_price: '',
+		is_sale: true,
+		is_purchase: false,
 		active: true
 	});
 	let error = $state('');
@@ -38,7 +40,16 @@
 
 	function openCreate() {
 		editing = null;
-		form = { code: '', name: '', category_id: '', unit: 'vnt.', unit_price: '', active: true };
+		form = {
+			code: '',
+			name: '',
+			category_id: '',
+			unit: 'vnt.',
+			unit_price: '',
+			is_sale: true,
+			is_purchase: false,
+			active: true
+		};
 		open = true;
 	}
 
@@ -50,6 +61,8 @@
 			category_id: s.category_id ? String(s.category_id) : '',
 			unit: s.unit,
 			unit_price: s.unit_price,
+			is_sale: s.is_sale,
+			is_purchase: s.is_purchase,
 			active: s.active
 		};
 		open = true;
@@ -96,6 +109,7 @@
 				<Table.Head>Kategorija</Table.Head>
 				<Table.Head>Vnt.</Table.Head>
 				<Table.Head class="text-right">Kaina</Table.Head>
+				<Table.Head>Naudojimas</Table.Head>
 				<Table.Head>Būsena</Table.Head>
 				<Table.Head class="w-16"></Table.Head>
 			</Table.Row>
@@ -108,6 +122,11 @@
 					<Table.Cell>{categories.find((c) => c.id === s.category_id)?.name ?? ''}</Table.Cell>
 					<Table.Cell>{s.unit}</Table.Cell>
 					<Table.Cell class="text-right">{fmtEur(s.unit_price)}</Table.Cell>
+					<Table.Cell class="text-sm">
+						{[s.is_sale ? 'Pardavimai' : '', s.is_purchase ? 'Pirkimai' : '']
+							.filter(Boolean)
+							.join(', ') || '–'}
+					</Table.Cell>
 					<Table.Cell>
 						<Badge variant={s.active ? 'default' : 'secondary'}>
 							{s.active ? 'Aktyvus' : 'Išjungtas'}
@@ -129,7 +148,7 @@
 			{/each}
 			{#if services.length === 0}
 				<Table.Row>
-					<Table.Cell colspan={7} class="text-center text-muted-foreground">
+					<Table.Cell colspan={8} class="text-center text-muted-foreground">
 						Įrašų nėra – sukurkite paslaugų/prekių katalogą sąskaitoms
 					</Table.Cell>
 				</Table.Row>
@@ -169,6 +188,14 @@
 					<Label>Kaina EUR *</Label>
 					<Input type="number" step="0.01" min="0" bind:value={form.unit_price} required />
 				</div>
+			</div>
+			<div class="flex gap-4 text-sm">
+				<label class="flex items-center gap-2">
+					<input type="checkbox" bind:checked={form.is_sale} /> Pardavimams
+				</label>
+				<label class="flex items-center gap-2">
+					<input type="checkbox" bind:checked={form.is_purchase} /> Pirkimams
+				</label>
 			</div>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" bind:checked={form.active} /> Aktyvus (rodomas sąskaitose)

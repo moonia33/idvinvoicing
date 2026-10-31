@@ -5,22 +5,6 @@ from django.db import models
 from apps.tenancy.models import Tenant
 
 
-class Supplier(models.Model):
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="suppliers")
-    name = models.CharField(max_length=200)
-    code = models.CharField("Įmonės / asmens kodas", max_length=50, blank=True)
-    vat_code = models.CharField("PVM kodas", max_length=50, blank=True)
-    email = models.EmailField(blank=True)
-    address = models.CharField(max_length=300, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
-
-
 class Purchase(models.Model):
     """Gautas išlaidų dokumentas (sąskaita/kvitas) su mokėjimais.
 
@@ -39,7 +23,9 @@ class Purchase(models.Model):
         PLN = "PLN", "PLN"
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="purchases")
-    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="purchases")
+    supplier = models.ForeignKey(
+        "invoicing.Counterparty", on_delete=models.PROTECT, related_name="purchases"
+    )
     doc_number = models.CharField("Tiekėjo dokumento nr.", max_length=60, blank=True)
     document_date = models.DateField("Dokumento data")
     due_date = models.DateField("Apmokėti iki", null=True, blank=True)

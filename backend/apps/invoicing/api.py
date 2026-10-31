@@ -7,10 +7,16 @@ from ninja import Router, Status
 from ninja.errors import HttpError
 
 from apps.core.models import DocumentSequence
-from apps.invoicing.models import Client, Invoice, Payment, RecurringTemplate, Service
+from apps.invoicing.models import (
+    Counterparty,
+    Invoice,
+    Payment,
+    RecurringTemplate,
+    Service,
+)
 from apps.invoicing.schemas import (
-    ClientIn,
-    ClientOut,
+    ContactIn,
+    ContactOut,
     InvoiceIn,
     InvoiceOut,
     IssueIn,
@@ -34,41 +40,40 @@ from apps.tenancy.models import Tenant
 router = Router()
 
 
-def get_client(tenant: Tenant, client_id: int) -> Client:
-    return get_object_or_404(Client, id=client_id, tenant=tenant)
+def get_client(tenant: Tenant, client_id: int) -> Counterparty:
+    return get_object_or_404(Counterparty, id=client_id, tenant=tenant)
 
 
-def get_invoice(tenant: Tenant, invoice_id: int) -> Invoice:
-    return get_object_or_404(
-        Invoice.objects.select_related("client").prefetch_related("lines", "payments"),
-        id=invoice_id,
-        tenant=tenant,
-    )
+# --- Clients (kontaktai su is_client=True) ---
 
 
-# --- Clients ---
-
-
-@router.get("/clients", response=list[ClientOut])
+@router.get("/clients", response=list[ContactOut])
 def list_clients(request):
-    return Client.objects.filter(tenant=current_tenant(request))
+    return Counterparty.objects.filter(tenant=current_tenant(request), is_client=True)
 
 
-@router.post("/clients", response={201: ClientOut})
-def create_client(request, data: ClientIn):
-    client = Client.objects.create(tenant=current_tenant(request), **data.model_dump())
-    return Status(201, client)
+@router.post("/clients", response={201: ContactOut})
+def create_client(request, data: ContactIn):
+    values = data.model_dump()
+    values["is_client"] = True
+    contact = Counterparty.objects.create(tenant=current_tenant(request), **values)
+    return Status(201, contact)
 
 
-@router.get("/clients/{client_id}", response=ClientOut)
+@router.get("/clients/{client_id}", response=ContactOut)
 def get_client_view(request, client_id: int):
     return get_client(current_tenant(request), client_id)
 
 
-@router.put("/clients/{client_id}", response=ClientOut)
-def update_client(request, client_id: int, data: ClientIn):
+@router.put("/clients/{client_id}", response=ContactOut)
+def update_client(request, client_id: int, data: ContactIn):
     client = get_client(current_tenant(request), client_id)
-    for key, value in data.model_dump().items():
+    values = data.model_dump()
+    if not values["is_client"] and not values["is_supplier"]:
+        # flag'ai nenurodyti (seni klientai) – paliekame esamus
+        values["is_client"] = client.is_client
+        values["is_supplier"] = client.is_supplier
+    for key, value in values.items():
         setattr(client, key, value)
     client.save()
     return client
@@ -78,6 +83,14 @@ def update_client(request, client_id: int, data: ClientIn):
 def delete_client(request, client_id: int):
     get_client(current_tenant(request), client_id).delete()
     return Status(204, None)
+
+
+def get_invoice(tenant: Tenant, invoice_id: int) -> Invoice:
+    return get_object_or_404(
+        Invoice.objects.select_related("client").prefetch_related("lines", "payments"),
+        id=invoice_id,
+        tenant=tenant,
+    )
 
 
 # --- Services (katalogas) ---
@@ -93,18 +106,22 @@ def _service_values(tenant: Tenant, data: ServiceIn) -> dict:
     values = data.model_dump()
     category_id = values.pop("category_id")
     if category_id:
-        values["category"] = get_object_or_404(
-            Category, id=category_id, tenant=tenant, kind="income"
-        )
+        values["category"] = get_object_or_404(Category, id=category_id, tenant=tenant)
     else:
         values["category"] = None
     return values
 
 
 @router.get("/services", response=list[ServiceOut])
-def list_services(request, all: bool = False):
+def list_services(request, all: bool = False, usage: str | None = None):
     qs = Service.objects.filter(tenant=current_tenant(request))
-    return qs if all else qs.filter(active=True)
+    if not all:
+        qs = qs.filter(active=True)
+    if usage == "sale":
+        qs = qs.filter(is_sale=True)
+    elif usage == "purchase":
+        qs = qs.filter(is_purchase=True)
+    return qs
 
 
 @router.post("/services", response={201: ServiceOut})

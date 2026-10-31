@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from apps.core.ltnum import lt_amount_words, lt_int_words
-from apps.invoicing.models import Client, Invoice, InvoiceLine, Payment
+from apps.invoicing.models import Counterparty, Invoice, InvoiceLine, Payment
 from apps.invoicing.services import issue_invoice
 
 from .conftest import post_json
@@ -14,7 +14,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def issued_invoice(tenant):
-    client = Client.objects.create(tenant=tenant, name="UAB Klientas")
+    client = Counterparty.objects.create(tenant=tenant, name="UAB Klientas")
     inv = Invoice.objects.create(tenant=tenant, client=client)
     InvoiceLine.objects.create(
         invoice=inv, description="Konsultacija", quantity=1, unit_price=Decimal("100")
