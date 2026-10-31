@@ -193,7 +193,7 @@ export interface TaxLine {
 export interface MonthRow {
 	month: number;
 	income: string;
-	profit: string;
+	taxable_income: string;
 	vsd: string;
 	psd: string;
 }
@@ -207,7 +207,8 @@ export interface TaxBreakdown {
 	deductions_method: string;
 	deductions_applied: string;
 	recommended_deductions_method: string;
-	profit: string;
+	taxable_income: string;
+	net_earning: string;
 	gpm: TaxLine;
 	vsd: TaxLine;
 	psd: TaxLine;

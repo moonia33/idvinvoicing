@@ -77,11 +77,12 @@ def taxes_workbook(tenant: Tenant, year: int, psd_paid_elsewhere: bool = False) 
             f"Pritaikyti atskaitymai ({t.deductions_method})",
             t.deductions_applied,
         ),
-        ("Apmokestinamasis pelnas", t.profit),
+        ("Apmokestinamosios pajamos (AP)", t.taxable_income),
         ("GPM", t.gpm.amount, f"{t.gpm.rate} – {t.gpm.note}"),
         ("VSD", t.vsd.amount, f"bazė {t.vsd.base} – {t.vsd.note}"),
         ("PSD", t.psd.amount, f"bazė {t.psd.base} – {t.psd.note}"),
         ("Iš viso mokesčių", t.total),
+        ("Grynas uždarbis (AP − mokesčiai)", t.net_earning),
     ]
     for row in rows:
         ws.append([row[0], float(row[1]), row[2] if len(row) > 2 else ""])

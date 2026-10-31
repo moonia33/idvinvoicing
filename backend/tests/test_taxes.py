@@ -35,7 +35,7 @@ def test_summary_pct30(api_client, tenant):
     assert s["income_total"] == "40000.00"
     assert s["deductions_method"] == "pct30"
     assert s["deductions_applied"] == "12000.00"
-    assert s["profit"] == "28000.00"
+    assert s["taxable_income"] == "28000.00"
     # GPM 2025+: 5% + 15% x (28000-20000)/22500 = 10,333% -> 2893.33
     assert s["gpm"]["amount"] == "2893.33"
     # VSD/PSD bazė 90% pelno = 25200 > 12xMMA (12456)
@@ -49,14 +49,14 @@ def test_gpm_flat_and_top_rates(api_client, tenant):
     # AP 8400 (12000 pajamų su 30%) -> fiksuotas 5%
     paid_invoice(api_client, "12000.00")
     s = api_client.get("/api/v1/taxes/summary?year=2025").json()
-    assert s["profit"] == "8400.00"
+    assert s["taxable_income"] == "8400.00"
     assert s["gpm"]["rate"] == "0.0500"
     assert s["gpm"]["amount"] == "420.00"
 
     # AP virš 42500 -> viršutinis 20%: pajamos 12000+70000=82000, AP=57400
     paid_invoice(api_client, "70000.00")
     s = api_client.get("/api/v1/taxes/summary?year=2025").json()
-    assert s["profit"] == "57400.00"
+    assert s["taxable_income"] == "57400.00"
     assert s["gpm"]["rate"] == "0.2000"
     assert s["gpm"]["amount"] == "11480.00"
 
@@ -81,7 +81,7 @@ def test_summary_actual_deductions(api_client, tenant):
     )
     s = api_client.get("/api/v1/taxes/summary?year=2025").json()
     assert s["deductions_applied"] == "3000.00"
-    assert s["profit"] == "17000.00"
+    assert s["taxable_income"] == "17000.00"
 
 
 def test_min_social_base(api_client, tenant):

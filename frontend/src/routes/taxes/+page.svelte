@@ -83,7 +83,7 @@
 		{t.months === 1 ? 'mėnesį' : 'mėnesius'} ({t.year} m.)
 	</p>
 
-	<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+	<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
 		<Card.Root
 			><Card.Content class="pt-4"
 				><div class="text-xs text-muted-foreground">Pajamos</div>
@@ -100,8 +100,9 @@
 		>
 		<Card.Root
 			><Card.Content class="pt-4"
-				><div class="text-xs text-muted-foreground">Pelnas</div>
-				<div class="text-xl font-semibold">{fmtEur(t.profit)}</div></Card.Content
+				><div class="text-xs text-muted-foreground">Apmokestinamosios pajamos</div>
+				<div class="text-xl font-semibold">{fmtEur(t.taxable_income)}</div>
+				<div class="mt-1 text-xs text-muted-foreground">AP – mokesčių bazė</div></Card.Content
 			></Card.Root
 		>
 		<Card.Root
@@ -111,6 +112,13 @@
 				<div class="mt-1 text-xs text-muted-foreground">
 					Sumokėta {fmtEur(t.paid_total)} · Liko {fmtEur(t.remaining_total)}
 				</div></Card.Content
+			></Card.Root
+		>
+		<Card.Root
+			><Card.Content class="pt-4"
+				><div class="text-xs text-muted-foreground">Grynas uždarbis</div>
+				<div class="text-xl font-semibold">{fmtEur(t.net_earning)}</div>
+				<div class="mt-1 text-xs text-muted-foreground">AP − mokesčiai</div></Card.Content
 			></Card.Root
 		>
 	</div>
@@ -161,7 +169,7 @@
 						<Table.Row>
 							<Table.Head>Mėnuo</Table.Head>
 							<Table.Head class="text-right">Pajamos</Table.Head>
-							<Table.Head class="text-right">Pelnas</Table.Head>
+							<Table.Head class="text-right">Apmokest. pajamos</Table.Head>
 							<Table.Head class="text-right">VSD įmoka</Table.Head>
 							<Table.Head class="text-right">PSD įmoka</Table.Head>
 						</Table.Row>
@@ -171,7 +179,7 @@
 							<Table.Row>
 								<Table.Cell>{MONTH_NAMES[m.month]}</Table.Cell>
 								<Table.Cell class="text-right">{fmtEur(m.income)}</Table.Cell>
-								<Table.Cell class="text-right">{fmtEur(m.profit)}</Table.Cell>
+								<Table.Cell class="text-right">{fmtEur(m.taxable_income)}</Table.Cell>
 								<Table.Cell class="text-right">{fmtEur(m.vsd)}</Table.Cell>
 								<Table.Cell class="text-right">{fmtEur(m.psd)}</Table.Cell>
 							</Table.Row>
@@ -179,8 +187,8 @@
 					</Table.Body>
 				</Table.Root>
 				<p class="px-4 pt-1 pb-3 text-xs text-muted-foreground">
-					VSD – tik nuo faktinio pelno (minimumo nėra); PSD nedraustiems kitur – minimumas nuo MMA
-					kas mėn., metų gale perskaičiuojama nuo 90 % pelno.
+					VSD – tik nuo faktinių AP (minimumo nėra); PSD nedraustiems kitur – minimumas nuo MMA kas
+					mėn., metų gale perskaičiuojama nuo 90 % AP.
 				</p>
 			</Card.Content>
 		</Card.Root>

@@ -30,7 +30,7 @@ class TaxLineOut(Schema):
 class MonthRowOut(Schema):
     month: int
     income: Decimal
-    profit: Decimal
+    taxable_income: Decimal
     vsd: Decimal
     psd: Decimal
 
@@ -45,7 +45,8 @@ class TaxBreakdownOut(Schema):
     deductions_method: str
     deductions_applied: Decimal
     recommended_deductions_method: str
-    profit: Decimal
+    taxable_income: Decimal
+    net_earning: Decimal
     gpm: TaxLineOut
     vsd: TaxLineOut
     psd: TaxLineOut

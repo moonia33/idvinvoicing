@@ -34,7 +34,7 @@ class TaxLine:
 class MonthRow:
     month: int
     income: Decimal
-    profit: Decimal
+    taxable_income: Decimal
     vsd: Decimal
     psd: Decimal
 
@@ -50,7 +50,8 @@ class TaxBreakdown:
     deductions_method: str
     deductions_applied: Decimal
     recommended_deductions_method: str
-    profit: Decimal
+    taxable_income: Decimal
+    net_earning: Decimal
     gpm: TaxLine
     vsd: TaxLine
     psd: TaxLine
@@ -93,30 +94,30 @@ def _tax_paid(tenant: Tenant, kind: str, year: int) -> Decimal:
     )
 
 
-def _gpm(profit: Decimal, rule: TaxRule) -> TaxLine:
+def _gpm(ap: Decimal, rule: TaxRule) -> TaxLine:
     """GPM 2025+: 5% iki flat_cap, linijinis 5->20% iki progressive_cap, 20% virš."""
-    if profit <= 0:
+    if ap <= 0:
         return TaxLine(Decimal("0"), rule.gpm_rate, Decimal("0"))
-    if profit <= rule.gpm_flat_cap:
-        return TaxLine(profit, rule.gpm_rate, _q(profit * rule.gpm_rate))
-    if profit <= rule.gpm_progressive_cap:
-        share = (profit - rule.gpm_flat_cap) / (rule.gpm_progressive_cap - rule.gpm_flat_cap)
+    if ap <= rule.gpm_flat_cap:
+        return TaxLine(ap, rule.gpm_rate, _q(ap * rule.gpm_rate))
+    if ap <= rule.gpm_progressive_cap:
+        share = (ap - rule.gpm_flat_cap) / (rule.gpm_progressive_cap - rule.gpm_flat_cap)
         effective = rule.gpm_rate + (rule.gpm_top_rate - rule.gpm_rate) * share
-        return TaxLine(profit, effective, _q(profit * effective), "progresinis GPM tarifas")
-    return TaxLine(profit, rule.gpm_top_rate, _q(profit * rule.gpm_top_rate))
+        return TaxLine(ap, effective, _q(ap * effective), "progresinis GPM tarifas")
+    return TaxLine(ap, rule.gpm_top_rate, _q(ap * rule.gpm_top_rate))
 
 
 def _social(
-    profit: Decimal,
+    ap: Decimal,
     rate: Decimal,
     rule: TaxRule,
     months: int,
     exempt: bool = False,
     no_minimum: bool = False,
 ) -> TaxLine:
-    if exempt or profit <= 0:
+    if exempt or ap <= 0:
         return TaxLine(Decimal("0"), rate, Decimal("0"))
-    base = profit * rule.social_base_share
+    base = ap * rule.social_base_share
     note = ""
     min_base = rule.mma_monthly * months
     if not no_minimum and base < min_base:
@@ -179,18 +180,24 @@ def compute_taxes(
         else SellerProfile.DeductionsMethod.ACTUAL
     )
 
-    profit = _q(max(income - applied, Decimal("0")))
+    taxable_income = _q(max(income - applied, Decimal("0")))
     if income > Decimal("45000"):
         warnings.append(
             "Pajamos viršijo 45 000 EUR – gali tekti registruotis PVM mokėtoju "
             "(nuo sandorio, kuriuo riba viršyta)."
         )
-    gpm = _gpm(profit, rule)
+    gpm = _gpm(taxable_income, rule)
     vsd_rate = rule.vsd_rate_pension if pension else rule.vsd_rate
     # VSD individualiai veiklai – be MMA minimumo (tik metinė luba 43 x VDU)
-    vsd = _social(profit, vsd_rate, rule, active_months, exempt=vsd_relief, no_minimum=True)
+    vsd = _social(
+        taxable_income, vsd_rate, rule, active_months, exempt=vsd_relief, no_minimum=True
+    )
     psd = _social(
-        profit, rule.psd_rate, rule, active_months, no_minimum=insured or psd_paid_elsewhere
+        taxable_income,
+        rule.psd_rate,
+        rule,
+        active_months,
+        no_minimum=insured or psd_paid_elsewhere,
     )
 
     for line, kind in ((gpm, "gpm"), (vsd, "vsd"), (psd, "psd")):
@@ -207,21 +214,21 @@ def compute_taxes(
             if method == SellerProfile.DeductionsMethod.PCT30
             else s["deductible_total"]
         )
-        m_profit = _q(max(m_income - m_ded, Decimal("0")))
+        m_ap = _q(max(m_income - m_ded, Decimal("0")))
         m_active = start is None or (year, m) >= (start.year, start.month)
-        # VSD – visada tik nuo faktinio pelno (minimumo nėra)
+        # VSD – visada tik nuo faktinių AP (minimumo nėra)
         if vsd_relief or not m_active:
             vsd_m = Decimal("0")
         else:
-            vsd_m = _q(m_profit * rule.social_base_share * vsd_rate)
-        # PSD – nedraustiems kas mėn. nuo MMA; draustiems – metų gale nuo pelno
+            vsd_m = _q(m_ap * rule.social_base_share * vsd_rate)
+        # PSD – nedraustiems kas mėn. nuo MMA; draustiems – metų gale nuo AP
         if not m_active:
             psd_m = Decimal("0")
         elif insured:
-            psd_m = _q(m_profit * rule.social_base_share * rule.psd_rate)
+            psd_m = _q(m_ap * rule.social_base_share * rule.psd_rate)
         else:
             psd_m = _q(rule.psd_rate * rule.mma_monthly)
-        monthly.append(MonthRow(m, _q(m_income), m_profit, _q(vsd_m), _q(psd_m)))
+        monthly.append(MonthRow(m, _q(m_income), m_ap, _q(vsd_m), _q(psd_m)))
 
     paid_total = gpm.paid + vsd.paid + psd.paid
     remaining_total = gpm.remaining + vsd.remaining + psd.remaining
@@ -236,7 +243,8 @@ def compute_taxes(
         deductions_method=method,
         deductions_applied=applied,
         recommended_deductions_method=recommended,
-        profit=profit,
+        taxable_income=taxable_income,
+        net_earning=_q(taxable_income - gpm.amount - vsd.amount - psd.amount),
         gpm=gpm,
         vsd=vsd,
         psd=psd,
