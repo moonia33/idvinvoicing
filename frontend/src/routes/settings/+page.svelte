@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '#lib/api';
+	import { auth } from '#lib/auth.svelte';
 	import type { Profile, SmtpSettings } from '#lib/types';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
@@ -94,6 +95,28 @@
 		if (!smtp.password) delete body.password;
 		await api('/mail/smtp', { method: 'PUT', body });
 		smtpMsg = 'SMTP nustatymai išsaugoti.';
+	}
+
+	let pw = $state({ old_password: '', new_password: '', repeat: '' });
+	let pwMsg = $state('');
+
+	async function savePassword(e: SubmitEvent) {
+		e.preventDefault();
+		pwMsg = '';
+		if (pw.new_password !== pw.repeat) {
+			pwMsg = 'Nauji slaptažodžiai nesutampa.';
+			return;
+		}
+		try {
+			await api('/auth/password', {
+				method: 'POST',
+				body: { old_password: pw.old_password, new_password: pw.new_password }
+			});
+			pw = { old_password: '', new_password: '', repeat: '' };
+			pwMsg = 'Slaptažodis pakeistas.';
+		} catch (err) {
+			pwMsg = err instanceof Error ? err.message : 'Klaida';
+		}
 	}
 </script>
 
@@ -269,5 +292,62 @@
 			</Card.Content>
 			<Card.Footer><Button type="submit">Išsaugoti SMTP</Button></Card.Footer>
 		</form>
+	</Card.Root>
+
+	<Card.Root>
+		<Card.Header
+			><Card.Title>Paskyra</Card.Title><Card.Description
+				>Prisijungimo duomenys</Card.Description
+			></Card.Header
+		>
+		<Card.Content class="space-y-3">
+			<div class="grid grid-cols-2 gap-3 text-sm">
+				<div>
+					<div class="text-muted-foreground">Vartotojas</div>
+					<div class="font-medium">{auth.user?.username ?? '—'}</div>
+				</div>
+				<div>
+					<div class="text-muted-foreground">El. paštas</div>
+					<div class="font-medium">{auth.user?.email || '—'}</div>
+				</div>
+			</div>
+			<p class="text-xs text-muted-foreground">
+				Vartotojo vardą ir el. paštą gali keisti administratorius (/admin).
+			</p>
+			<Separator />
+			<form onsubmit={savePassword} class="space-y-3">
+				<div class="space-y-1.5">
+					<Label>Dabartinis slaptažodis</Label>
+					<Input type="password" bind:value={pw.old_password} required autocomplete="current-password" />
+				</div>
+				<div class="grid grid-cols-2 gap-3">
+					<div class="space-y-1.5">
+						<Label>Naujas slaptažodis</Label>
+						<Input
+							type="password"
+							bind:value={pw.new_password}
+							required
+							minlength={8}
+							autocomplete="new-password"
+						/>
+					</div>
+					<div class="space-y-1.5">
+						<Label>Pakartoti naują</Label>
+						<Input
+							type="password"
+							bind:value={pw.repeat}
+							required
+							autocomplete="new-password"
+						/>
+					</div>
+				</div>
+				{#if pwMsg}
+					<p class="text-sm {pwMsg.includes('pakeistas') ? 'text-green-600' : 'text-red-600'}">
+						{pwMsg}
+					</p>
+				{/if}
+				<Button type="submit">Pakeisti slaptažodį</Button>
+			</form>
+		</Card.Content>
 	</Card.Root>
 </div>

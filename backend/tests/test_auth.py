@@ -64,6 +64,33 @@ def test_profile_upsert(api_client, tenant):
     assert api_client.get("/api/v1/profile").json()["accounting_basis"] == "accrual"
 
 
+def test_change_password(api_client, user):
+    resp = post_json(
+        api_client,
+        "/api/v1/auth/password",
+        {"old_password": "blogas", "new_password": "naujas123"},
+    )
+    assert resp.status_code == 400
+
+    resp = post_json(
+        api_client,
+        "/api/v1/auth/password",
+        {"old_password": "slaptas123", "new_password": "trumpas"},
+    )
+    assert resp.status_code == 400
+
+    resp = post_json(
+        api_client,
+        "/api/v1/auth/password",
+        {"old_password": "slaptas123", "new_password": "naujas12345"},
+    )
+    assert resp.status_code == 200
+    # sesija išlieka (update_session_auth_hash), nauju slaptažodžiu veikia login
+    assert api_client.get("/api/v1/auth/me").status_code == 200
+    user.refresh_from_db()
+    assert user.check_password("naujas12345")
+
+
 def test_profile_logo_upload_and_delete(api_client, tenant):
     resp = api_client.post(
         "/api/v1/profile/logo", {"file": io.BytesIO(_png())}, format="multipart"

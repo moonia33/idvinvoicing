@@ -20,7 +20,8 @@
 		LogOut,
 		Package,
 		ShoppingCart,
-		Truck
+		Truck,
+		Plus
 	} from '@lucide/svelte';
 	import type { LayoutProps } from './$types';
 	import { api } from '#lib/api';
@@ -118,6 +119,13 @@
 						{/each}
 					</Select.Content>
 				</Select.Root>
+				<Button
+					variant="ghost"
+					class="w-full justify-start"
+					onclick={() => goto(resolve('/select-tenant'))}
+				>
+					<Plus class="size-4" /> Veiklos…
+				</Button>
 				<Button variant="ghost" class="w-full justify-start" onclick={() => auth.logout()}>
 					<LogOut class="size-4" /> Atsijungti
 				</Button>

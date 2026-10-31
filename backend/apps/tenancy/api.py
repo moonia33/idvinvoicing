@@ -1,9 +1,9 @@
 import base64
 from io import BytesIO
 
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.middleware.csrf import get_token
-from ninja import File, Router, Status
+from ninja import File, Router, Schema, Status
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
 
@@ -50,6 +50,24 @@ def login_view(request, data: LoginIn):
 def logout_view(request):
     logout(request)
     return {"detail": "ok"}
+
+
+class PasswordIn(Schema):
+    old_password: str
+    new_password: str
+
+
+@router.post("/auth/password", response={200: dict, 400: dict})
+def change_password(request, data: PasswordIn):
+    user = request.user
+    if not user.check_password(data.old_password):
+        return Status(400, {"detail": "Neteisingas dabartinis slaptažodis"})
+    if len(data.new_password) < 8:
+        return Status(400, {"detail": "Naujas slaptažodis per trumpas (min. 8 simboliai)"})
+    user.set_password(data.new_password)
+    user.save(update_fields=["password"])
+    update_session_auth_hash(request, user)
+    return Status(200, {"detail": "Slaptažodis pakeistas"})
 
 
 @router.get("/auth/me", response=MeOut)
