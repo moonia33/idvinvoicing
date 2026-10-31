@@ -200,6 +200,29 @@ def test_no_activity_start_uses_full_window(api_client, tenant):
     assert s["vsd"]["base"] == "1890.00"
 
 
+def test_net_earning_formulas(api_client, tenant):
+    paid_invoice(api_client, "3000.00")
+    post_json(
+        api_client,
+        "/api/v1/ledger/entries",
+        {
+            "kind": "expense",
+            "document_date": "2025-02-01",
+            "paid_date": "2025-02-01",
+            "amount_original": "400.00",
+            "deductible": True,
+        },
+    )
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    # 30%: grynas = pajamos − mokesčiai (GPM 105 + VSD 236.63 + PSD 869.43)
+    assert float(s["net_earning"]) == round(3000 - float(s["total"]), 2)
+    tenant.profile.deductions_method = "actual"
+    tenant.profile.save()
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    # actual: grynas = pajamos − realios išlaidos (be mokesčių įmokų) − mokesčiai
+    assert float(s["net_earning"]) == round(3000 - 400 - float(s["total"]), 2)
+
+
 def test_tax_payments_reduce_remaining(api_client, tenant):
     paid_invoice(api_client, "3000.00")
     post_json(

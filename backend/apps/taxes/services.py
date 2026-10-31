@@ -232,6 +232,16 @@ def compute_taxes(
 
     paid_total = gpm.paid + vsd.paid + psd.paid
     remaining_total = gpm.remaining + vsd.remaining + psd.remaining
+    taxes_total = _q(gpm.amount + vsd.amount + psd.amount)
+    # Grynas uždarbis: 30% metu atskaitymai nominalūs -> pajamos − mokesčiai;
+    # faktinių išlaidų metu atimamos ir realios išlaidos (be mokesčių įmokų,
+    # kurios jau įeina į „mokesčiai" dalį)
+    real_expenses = (
+        expenses - paid_total
+        if method == SellerProfile.DeductionsMethod.ACTUAL
+        else Decimal("0")
+    )
+    net_earning = _q(income - real_expenses - taxes_total)
 
     return TaxBreakdown(
         year=year,
@@ -244,11 +254,11 @@ def compute_taxes(
         deductions_applied=applied,
         recommended_deductions_method=recommended,
         taxable_income=taxable_income,
-        net_earning=_q(income - gpm.amount - vsd.amount - psd.amount),
+        net_earning=net_earning,
         gpm=gpm,
         vsd=vsd,
         psd=psd,
-        total=_q(gpm.amount + vsd.amount + psd.amount),
+        total=taxes_total,
         paid_total=_q(paid_total),
         remaining_total=_q(remaining_total),
         monthly=monthly,

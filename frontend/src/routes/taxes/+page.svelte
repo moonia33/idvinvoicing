@@ -118,7 +118,9 @@
 			><Card.Content class="pt-4"
 				><div class="text-xs text-muted-foreground">Grynas uždarbis</div>
 				<div class="text-xl font-semibold">{fmtEur(t.net_earning)}</div>
-				<div class="mt-1 text-xs text-muted-foreground">Pajamos − mokesčiai</div></Card.Content
+				<div class="mt-1 text-xs text-muted-foreground">
+					Pajamos{t.deductions_method === 'actual' ? ' − išlaidos' : ''} − mokesčiai
+				</div></Card.Content
 			></Card.Root
 		>
 	</div>
