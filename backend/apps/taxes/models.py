@@ -35,6 +35,30 @@ class TaxRule(models.Model):
         default=Decimal("0.20"),
         help_text="GPM tarifas AP virš gpm_progressive_cap",
     )
+    gpm_band1_limit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("83237.40"),
+        help_text="GPM 20% juostos riba (36 VDU); 2026 m. – 83 237,40",
+    )
+    gpm_rate_band2 = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=Decimal("0.25"),
+        help_text="GPM tarifas AP nuo gpm_band1_limit iki gpm_band2_limit",
+    )
+    gpm_band2_limit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("138729.00"),
+        help_text="GPM 25% juostos riba (60 VDU); 2026 m. – 138 729,00",
+    )
+    gpm_rate_band3 = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=Decimal("0.32"),
+        help_text="GPM tarifas AP virš gpm_band2_limit",
+    )
     fixed_deduction_rate = models.DecimalField(
         max_digits=5,
         decimal_places=4,

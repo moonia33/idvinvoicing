@@ -104,7 +104,16 @@ def _gpm(ap: Decimal, rule: TaxRule) -> TaxLine:
         share = (ap - rule.gpm_flat_cap) / (rule.gpm_progressive_cap - rule.gpm_flat_cap)
         effective = rule.gpm_rate + (rule.gpm_top_rate - rule.gpm_rate) * share
         return TaxLine(ap, effective, _q(ap * effective), "progresinis GPM tarifas")
-    return TaxLine(ap, rule.gpm_top_rate, _q(ap * rule.gpm_top_rate))
+    # Virš 42 500 AP pajamų mokesčio kreditas netaikomas – visa suma
+    # apmokestinama marginaliu principu 20/25/32% (GPMĮ 6 str. 1 d., 18-2 str.)
+    band1 = rule.gpm_band1_limit
+    band2 = rule.gpm_band2_limit
+    amount = (
+        min(ap, band1) * rule.gpm_top_rate
+        + max(min(ap, band2) - band1, Decimal("0")) * rule.gpm_rate_band2
+        + max(ap - band2, Decimal("0")) * rule.gpm_rate_band3
+    )
+    return TaxLine(ap, amount / ap, _q(amount), "marginalūs GPM tarifai 20/25/32%")
 
 
 def _social(
