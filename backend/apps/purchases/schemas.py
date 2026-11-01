@@ -21,6 +21,7 @@ class PurchaseLineOut(PurchaseLineIn):
 
 class PurchaseIn(Schema):
     supplier_id: int
+    doc_type: Purchase.DocType = Purchase.DocType.SF
     doc_number: str = ""
     document_date: date
     due_date: date | None = None
@@ -29,6 +30,7 @@ class PurchaseIn(Schema):
     category_id: int | None = None
     deductible: bool = True
     notes: str = ""
+    paid_now: bool = False  # kuriant – iškart registruoti pilną mokėjimą
     lines: list[PurchaseLineIn]
 
 
@@ -57,6 +59,7 @@ class PurchasePaymentOut(Schema):
 class PurchaseOut(Schema):
     id: int
     supplier: ContactOut
+    doc_type: Purchase.DocType
     doc_number: str
     document_date: date
     due_date: date | None

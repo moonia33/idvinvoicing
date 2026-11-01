@@ -13,12 +13,24 @@
 	import * as Dialog from '#lib/components/ui/dialog';
 	import * as Select from '#lib/components/ui/select';
 	import { Textarea } from '#lib/components/ui/textarea';
-	import { Download, Send, XCircle, CheckCircle, Coins, FileText } from '@lucide/svelte';
+	import {
+		Download,
+		Send,
+		XCircle,
+		CheckCircle,
+		Coins,
+		FileText,
+		Pencil,
+		Trash2,
+		Plus
+	} from '@lucide/svelte';
+	import type { InvoiceLine } from '#lib/types';
 
 	let invoice = $state<Invoice | null>(null);
 	let error = $state('');
 
 	let payOpen = $state(false);
+	let payEditId = $state<number | null>(null);
 	let payForm = $state({
 		amount: '',
 		paid_at: new Date().toISOString().slice(0, 10),
@@ -27,6 +39,77 @@
 		doc_number: '',
 		note: ''
 	});
+
+	let editOpen = $state(false);
+	let editForm = $state({
+		issue_date: '',
+		due_date: '',
+		series: '',
+		number: '' as string | number,
+		notes: '',
+		lines: [] as InvoiceLine[]
+	});
+
+	function openEdit() {
+		if (!invoice) return;
+		editForm = {
+			issue_date: invoice.issue_date ?? '',
+			due_date: invoice.due_date ?? '',
+			series: invoice.series,
+			number: invoice.number ?? '',
+			notes: invoice.notes,
+			lines: invoice.lines.map((l) => ({ ...l }))
+		};
+		editOpen = true;
+	}
+
+	async function saveEdit(e: SubmitEvent) {
+		e.preventDefault();
+		if (!invoice) return;
+		try {
+			invoice = await api<Invoice>(`/invoices/${id}`, {
+				method: 'PUT',
+				body: {
+					client_id: invoice.client.id,
+					issue_date: editForm.issue_date || null,
+					due_date: editForm.due_date || null,
+					series: editForm.series || null,
+					number: editForm.number === '' ? null : Number(editForm.number),
+					notes: editForm.notes,
+					lines: editForm.lines
+				}
+			});
+			editOpen = false;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Klaida';
+		}
+	}
+
+	function openPayment(p?: Invoice['payments'][number]) {
+		if (p) {
+			payEditId = p.id ?? null;
+			payForm = {
+				amount: p.amount,
+				paid_at: p.paid_at,
+				method: p.method,
+				doc_type: p.doc_type || ('kpo' as PaymentDocType),
+				doc_number: p.doc_number,
+				note: p.note
+			};
+		} else {
+			payEditId = null;
+			payForm.amount = String(
+				Math.max(Number(invoice?.total ?? 0) - Number(invoice?.paid_total ?? 0), 0).toFixed(2)
+			);
+		}
+		payOpen = true;
+	}
+
+	async function deletePayment(p: { id?: number }) {
+		if (!p.id || !confirm('Ištrinti mokėjimą?')) return;
+		await api(`/payments/${p.id}`, { method: 'DELETE' });
+		await load();
+	}
 
 	let sendOpen = $state(false);
 	let sendForm = $state({ to: '', subject: '', body: '' });
@@ -45,7 +128,13 @@
 	}
 
 	async function cancel() {
-		if (!confirm('Anuliuoti sąskaitą?')) return;
+		const hasPayments = invoice?.payments.length;
+		if (
+			!confirm(
+				hasPayments ? 'Anuliuoti sąskaitą? Visi mokėjimai bus ištrinti.' : 'Anuliuoti sąskaitą?'
+			)
+		)
+			return;
 		error = '';
 		try {
 			invoice = await api<Invoice>(`/invoices/${id}/cancel`, { method: 'POST' });
@@ -56,11 +145,13 @@
 
 	async function addPayment(e: SubmitEvent) {
 		e.preventDefault();
+		const body = { ...payForm, doc_type: payForm.method === 'cash' ? payForm.doc_type : '' };
 		try {
-			await api(`/invoices/${id}/payments`, {
-				method: 'POST',
-				body: { ...payForm, doc_type: payForm.method === 'cash' ? payForm.doc_type : '' }
-			});
+			if (payEditId) {
+				await api(`/payments/${payEditId}`, { method: 'PUT', body });
+			} else {
+				await api(`/invoices/${id}/payments`, { method: 'POST', body });
+			}
 			payOpen = false;
 			await load();
 		} catch (err) {
@@ -101,6 +192,9 @@
 			{#if invoice.status === 'draft'}
 				<Button onclick={issue}><CheckCircle class="size-4" /> Išrašyti</Button>
 			{/if}
+			{#if invoice.status !== 'cancelled'}
+				<Button variant="outline" onclick={openEdit}><Pencil class="size-4" /> Redaguoti</Button>
+			{/if}
 			{#if invoice.status !== 'draft' && invoice.status !== 'cancelled'}
 				<Button variant="outline" href="/api/v1/invoices/{invoice.id}/pdf" target="_blank">
 					<Download class="size-4" /> PDF
@@ -115,7 +209,7 @@
 					</Button>
 				{/if}
 				<Button variant="outline" onclick={openSend}><Send class="size-4" /> Siųsti</Button>
-				<Button variant="outline" onclick={() => (payOpen = true)}
+				<Button variant="outline" onclick={() => openPayment()}
 					><Coins class="size-4" /> Mokėjimas</Button
 				>
 			{/if}
@@ -191,18 +285,34 @@
 								</div>
 								<div class="mt-0.5 flex items-center justify-between text-xs text-muted-foreground">
 									<span>{PAYMENT_METHODS[p.method]}{p.doc_number ? ` · ${p.doc_number}` : ''}</span>
-									{#if p.doc_type}
-										<Button
-											variant="ghost"
-											size="sm"
-											class="h-6 px-1 text-xs"
-											href="/api/v1/payments/{p.id}/cash-doc.pdf"
-											target="_blank"
-										>
-											<FileText class="size-3" />
-											{p.doc_type.toUpperCase()}
-										</Button>
-									{/if}
+									<span class="flex items-center gap-1">
+										{#if p.doc_type}
+											<Button
+												variant="ghost"
+												size="sm"
+												class="h-6 px-1 text-xs"
+												href="/api/v1/payments/{p.id}/cash-doc.pdf"
+												target="_blank"
+											>
+												<FileText class="size-3" />
+												{p.doc_type.toUpperCase()}
+											</Button>
+										{/if}
+										{#if invoice.status !== 'cancelled'}
+											<Button
+												variant="ghost"
+												size="icon"
+												class="h-6 w-6"
+												onclick={() => openPayment(p)}><Pencil class="size-3" /></Button
+											>
+											<Button
+												variant="ghost"
+												size="icon"
+												class="h-6 w-6 text-destructive"
+												onclick={() => deletePayment(p)}><Trash2 class="size-3" /></Button
+											>
+										{/if}
+									</span>
 								</div>
 							</li>
 						{/each}
@@ -228,9 +338,66 @@
 	<p class="text-muted-foreground">Kraunama…</p>
 {/if}
 
+<Dialog.Root bind:open={editOpen}>
+	<Dialog.Content class="max-w-2xl">
+		<Dialog.Header><Dialog.Title>Redaguoti sąskaitą</Dialog.Title></Dialog.Header>
+		<form onsubmit={saveEdit} class="space-y-3">
+			<div class="grid grid-cols-4 gap-3">
+				<div class="space-y-1.5">
+					<Label>Serija</Label><Input bind:value={editForm.series} />
+				</div>
+				<div class="space-y-1.5">
+					<Label>Numeris</Label><Input type="number" bind:value={editForm.number} />
+				</div>
+				<div class="space-y-1.5">
+					<Label>Išrašymo data</Label><Input type="date" bind:value={editForm.issue_date} />
+				</div>
+				<div class="space-y-1.5">
+					<Label>Apmokėti iki</Label><Input type="date" bind:value={editForm.due_date} />
+				</div>
+			</div>
+			<div class="space-y-2">
+				{#each editForm.lines as line, i (i)}
+					<div class="grid grid-cols-[1fr_70px_70px_100px_36px] gap-2">
+						<Input bind:value={line.description} placeholder="Aprašymas" required />
+						<Input type="number" step="0.001" min="0.001" bind:value={line.quantity} required />
+						<Input bind:value={line.unit} />
+						<Input type="number" step="0.01" min="0" bind:value={line.unit_price} required />
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							onclick={() => editForm.lines.splice(i, 1)}><Trash2 class="size-4" /></Button
+						>
+					</div>
+				{/each}
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onclick={() =>
+						editForm.lines.push({
+							description: '',
+							quantity: '1',
+							unit: 'vnt.',
+							unit_price: ''
+						})}><Plus class="size-4" /> Eilutė</Button
+				>
+			</div>
+			<div class="space-y-1.5">
+				<Label>Pastabos</Label><Textarea bind:value={editForm.notes} rows={2} />
+			</div>
+			<Dialog.Footer><Button type="submit">Išsaugoti pakeitimus</Button></Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
+
 <Dialog.Root bind:open={payOpen}>
 	<Dialog.Content>
-		<Dialog.Header><Dialog.Title>Registruoti mokėjimą</Dialog.Title></Dialog.Header>
+		<Dialog.Header
+			><Dialog.Title>{payEditId ? 'Redaguoti mokėjimą' : 'Registruoti mokėjimą'}</Dialog.Title
+			></Dialog.Header
+		>
 		<form onsubmit={addPayment} class="space-y-3">
 			<div class="grid grid-cols-2 gap-3">
 				<div class="space-y-1.5">

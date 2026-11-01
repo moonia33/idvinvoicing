@@ -122,9 +122,12 @@ export interface PurchasePayment {
 	note: string;
 }
 
+export type PurchaseDocKind = 'sf' | 'receipt' | 'ppk' | 'kio';
+
 export interface Purchase {
 	id: number;
 	supplier: Contact;
+	doc_type: PurchaseDocKind;
 	doc_number: string;
 	document_date: string;
 	due_date: string | null;

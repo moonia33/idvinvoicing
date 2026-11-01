@@ -8,6 +8,7 @@
 		fmtDate,
 		PURCHASE_STATUS_LABELS,
 		PURCHASE_DOC_TYPES,
+		PURCHASE_DOC_KINDS,
 		PAYMENT_METHODS
 	} from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
@@ -18,7 +19,7 @@
 	import * as Table from '#lib/components/ui/table';
 	import * as Dialog from '#lib/components/ui/dialog';
 	import * as Select from '#lib/components/ui/select';
-	import { XCircle, Coins, FileText } from '@lucide/svelte';
+	import { XCircle, Coins, FileText, Pencil, Trash2, Plus } from '@lucide/svelte';
 
 	let purchase = $state<Purchase | null>(null);
 	let categories = $state<Category[]>([]);
@@ -46,15 +47,86 @@
 
 	onMount(load);
 
-	function openPay() {
-		payForm = {
-			...payForm,
-			amount_original: String(
-				Math.max(Number(purchase?.total ?? 0) - Number(purchase?.paid_total ?? 0), 0).toFixed(2)
-			),
-			exchange_rate: purchase?.exchange_rate ?? '1'
-		};
+	let payEditId = $state<number | null>(null);
+
+	function openPay(p?: Purchase['payments'][number]) {
+		if (p) {
+			payEditId = p.id ?? null;
+			payForm = {
+				amount_original: p.amount_original,
+				exchange_rate: p.exchange_rate,
+				paid_at: p.paid_at,
+				method: p.method,
+				doc_type: p.doc_type || ('kio' as PurchaseDocType),
+				doc_number: p.doc_number,
+				note: p.note
+			};
+		} else {
+			payEditId = null;
+			payForm = {
+				...payForm,
+				amount_original: String(
+					Math.max(Number(purchase?.total ?? 0) - Number(purchase?.paid_total ?? 0), 0).toFixed(2)
+				),
+				exchange_rate: purchase?.exchange_rate ?? '1'
+			};
+		}
 		payOpen = true;
+	}
+
+	async function deletePayment(p: { id?: number }) {
+		if (!p.id || !confirm('Ištrinti mokėjimą?')) return;
+		await api(`/purchase-payments/${p.id}`, { method: 'DELETE' });
+		await load();
+	}
+
+	let editOpen = $state(false);
+	let editForm = $state({
+		doc_type: 'sf' as Purchase['doc_type'],
+		doc_number: '',
+		document_date: '',
+		due_date: '',
+		notes: '',
+		lines: [] as Purchase['lines']
+	});
+
+	function openEdit() {
+		if (!purchase) return;
+		editForm = {
+			doc_type: purchase.doc_type,
+			doc_number: purchase.doc_number,
+			document_date: purchase.document_date,
+			due_date: purchase.due_date ?? '',
+			notes: purchase.notes,
+			lines: purchase.lines.map((l) => ({ ...l }))
+		};
+		editOpen = true;
+	}
+
+	async function saveEdit(e: SubmitEvent) {
+		e.preventDefault();
+		if (!purchase) return;
+		try {
+			purchase = await api<Purchase>(`/purchases/${id}`, {
+				method: 'PUT',
+				body: {
+					supplier_id: purchase.supplier.id,
+					doc_type: editForm.doc_type,
+					doc_number: editForm.doc_number,
+					document_date: editForm.document_date,
+					due_date: editForm.due_date || null,
+					notes: editForm.notes,
+					currency: purchase.currency,
+					exchange_rate: purchase.exchange_rate,
+					category_id: purchase.category_id,
+					deductible: purchase.deductible,
+					lines: editForm.lines
+				}
+			});
+			editOpen = false;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Klaida';
+		}
 	}
 
 	let payEur = $derived(
@@ -64,15 +136,17 @@
 	async function addPayment(e: SubmitEvent) {
 		e.preventDefault();
 		error = '';
+		const body = {
+			...payForm,
+			exchange_rate: payForm.exchange_rate || null,
+			doc_type: payForm.method === 'cash' ? payForm.doc_type : ''
+		};
 		try {
-			await api(`/purchases/${id}/payments`, {
-				method: 'POST',
-				body: {
-					...payForm,
-					exchange_rate: payForm.exchange_rate || null,
-					doc_type: payForm.method === 'cash' ? payForm.doc_type : ''
-				}
-			});
+			if (payEditId) {
+				await api(`/purchase-payments/${payEditId}`, { method: 'PUT', body });
+			} else {
+				await api(`/purchases/${id}/payments`, { method: 'POST', body });
+			}
 			payOpen = false;
 			await load();
 		} catch (err) {
@@ -81,7 +155,14 @@
 	}
 
 	async function cancel() {
-		if (!confirm('Anuliuoti pirkinį?')) return;
+		if (
+			!confirm(
+				purchase?.payments.length
+					? 'Anuliuoti pirkinį? Visi mokėjimai bus ištrinti.'
+					: 'Anuliuoti pirkinį?'
+			)
+		)
+			return;
 		try {
 			purchase = await api<Purchase>(`/purchases/${id}/cancel`, { method: 'POST' });
 		} catch (err) {
@@ -93,11 +174,17 @@
 {#if purchase}
 	<div class="mb-6 flex flex-wrap items-center gap-3">
 		<Button variant="ghost" href="/purchases">← Atgal</Button>
-		<h1 class="text-2xl font-semibold">Pirkinis {purchase.doc_number || `#${purchase.id}`}</h1>
+		<h1 class="text-2xl font-semibold">
+			{PURCHASE_DOC_KINDS[purchase.doc_type]}
+			{purchase.doc_number || `#${purchase.id}`}
+		</h1>
 		<Badge>{PURCHASE_STATUS_LABELS[purchase.status]}</Badge>
 		<div class="ml-auto flex gap-2">
 			{#if purchase.status !== 'cancelled'}
-				<Button variant="outline" onclick={openPay}><Coins class="size-4" /> Mokėjimas</Button>
+				<Button variant="outline" onclick={openEdit}><Pencil class="size-4" /> Redaguoti</Button>
+				<Button variant="outline" onclick={() => openPay()}
+					><Coins class="size-4" /> Mokėjimas</Button
+				>
 				<Button variant="destructive" onclick={cancel}><XCircle class="size-4" /> Anuliuoti</Button>
 			{/if}
 		</div>
@@ -198,20 +285,33 @@
 								</div>
 								<div class="mt-0.5 flex items-center justify-between text-xs text-muted-foreground">
 									<span>{PAYMENT_METHODS[p.method]}{p.doc_number ? ` · ${p.doc_number}` : ''}</span>
-									{#if p.doc_type === 'kio'}
-										<Button
-											variant="ghost"
-											size="sm"
-											class="h-6 px-1 text-xs"
-											href="/api/v1/purchase-payments/{p.id}/kio.pdf"
-											target="_blank"
-										>
-											<FileText class="size-3" />
-											KIO
-										</Button>
-									{:else if p.doc_type === 'ppk'}
-										<span>PPK</span>
-									{/if}
+									<span class="flex items-center gap-1">
+										{#if p.doc_type === 'kio'}
+											<Button
+												variant="ghost"
+												size="sm"
+												class="h-6 px-1 text-xs"
+												href="/api/v1/purchase-payments/{p.id}/kio.pdf"
+												target="_blank"
+											>
+												<FileText class="size-3" />
+												KIO
+											</Button>
+										{:else if p.doc_type === 'ppk'}
+											<span>PPK</span>
+										{/if}
+										{#if purchase.status !== 'cancelled'}
+											<Button variant="ghost" size="icon" class="h-6 w-6" onclick={() => openPay(p)}
+												><Pencil class="size-3" /></Button
+											>
+											<Button
+												variant="ghost"
+												size="icon"
+												class="h-6 w-6 text-destructive"
+												onclick={() => deletePayment(p)}><Trash2 class="size-3" /></Button
+											>
+										{/if}
+									</span>
 								</div>
 							</li>
 						{/each}
@@ -311,6 +411,66 @@
 			{/if}
 			<div class="space-y-1.5"><Label>Pastaba</Label><Input bind:value={payForm.note} /></div>
 			<Dialog.Footer><Button type="submit">Išsaugoti</Button></Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={editOpen}>
+	<Dialog.Content class="max-w-2xl">
+		<Dialog.Header><Dialog.Title>Redaguoti pirkinį</Dialog.Title></Dialog.Header>
+		<form onsubmit={saveEdit} class="space-y-3">
+			<div class="grid grid-cols-4 gap-3">
+				<div class="space-y-1.5">
+					<Label>Dokumentas</Label>
+					<Select.Root type="single" bind:value={editForm.doc_type}>
+						<Select.Trigger class="w-full">{PURCHASE_DOC_KINDS[editForm.doc_type]}</Select.Trigger>
+						<Select.Content>
+							{#each Object.entries(PURCHASE_DOC_KINDS) as [v, label] (v)}
+								<Select.Item value={v} {label}>{label}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</div>
+				<div class="space-y-1.5">
+					<Label>Dok. nr.</Label><Input bind:value={editForm.doc_number} />
+				</div>
+				<div class="space-y-1.5">
+					<Label>Dokumento data</Label><Input type="date" bind:value={editForm.document_date} />
+				</div>
+				<div class="space-y-1.5">
+					<Label>Apmokėti iki</Label><Input type="date" bind:value={editForm.due_date} />
+				</div>
+			</div>
+			<div class="space-y-2">
+				{#each editForm.lines as line, i (i)}
+					<div class="grid grid-cols-[1fr_70px_70px_100px_36px] gap-2">
+						<Input bind:value={line.description} placeholder="Aprašymas" required />
+						<Input type="number" step="0.001" min="0.001" bind:value={line.quantity} required />
+						<Input bind:value={line.unit} />
+						<Input type="number" step="0.01" min="0" bind:value={line.unit_price} required />
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							onclick={() => editForm.lines.splice(i, 1)}><Trash2 class="size-4" /></Button
+						>
+					</div>
+				{/each}
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onclick={() =>
+						editForm.lines.push({
+							description: '',
+							quantity: '1',
+							unit: 'vnt.',
+							unit_price: ''
+						} as Purchase['lines'][number])}><Plus class="size-4" /> Eilutė</Button
+				>
+			</div>
+			<div class="space-y-1.5"><Label>Pastabos</Label><Input bind:value={editForm.notes} /></div>
+			<Dialog.Footer><Button type="submit">Išsaugoti pakeitimus</Button></Dialog.Footer>
 		</form>
 	</Dialog.Content>
 </Dialog.Root>

@@ -113,7 +113,9 @@ def test_cancel_rules(api_client):
         f"/api/v1/invoices/{inv2['id']}/payments",
         {"amount": "600.00", "paid_at": "2026-01-10", "method": "bank"},
     )
-    assert post_json(api_client, f"/api/v1/invoices/{inv2['id']}/cancel", {}).status_code == 400
+    r = post_json(api_client, f"/api/v1/invoices/{inv2['id']}/cancel", {})
+    assert r.status_code == 200  # anuliuojama kartu su mokėjimais
+    assert r.json()["payments"] == []
 
 
 def test_no_tenant_403(client, user):

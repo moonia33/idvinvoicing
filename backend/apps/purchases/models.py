@@ -22,9 +22,18 @@ class Purchase(models.Model):
         EUR = "EUR", "EUR"
         PLN = "PLN", "PLN"
 
+    class DocType(models.TextChoices):
+        SF = "sf", "Sąskaita faktūra"
+        RECEIPT = "receipt", "Kasos kvitas"
+        PPK = "ppk", "Pirkimo-pardavimo kvitas (PPK)"
+        KIO = "kio", "Kasos išlaidų orderis (KIO)"
+
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="purchases")
     supplier = models.ForeignKey(
         "invoicing.Counterparty", on_delete=models.PROTECT, related_name="purchases"
+    )
+    doc_type = models.CharField(
+        "Dokumento tipas", max_length=10, choices=DocType.choices, default=DocType.SF
     )
     doc_number = models.CharField("Tiekėjo dokumento nr.", max_length=60, blank=True)
     document_date = models.DateField("Dokumento data")

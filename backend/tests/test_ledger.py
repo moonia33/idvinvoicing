@@ -51,6 +51,61 @@ def test_journal_cash_basis(api_client, tenant):
     assert feb["income_total"] == "500.00"
 
 
+def test_edit_issued_invoice_and_payments(api_client):
+    """Išrašyta sąskaita redaguojama: numeris, data, eilutės; mokėjimai – PUT/DELETE."""
+    cid = post_json(api_client, "/api/v1/clients", {"name": "K"}).json()["id"]
+    inv = make_invoice_paid(api_client, cid)
+
+    # Numerio ir datos korekcija
+    resp = api_client.put(
+        f"/api/v1/invoices/{inv['id']}",
+        {
+            "client_id": cid,
+            "issue_date": "2026-01-15",
+            "number": 7,
+            "lines": [{"description": "Paslauga", "quantity": "2", "unit_price": "500.00"}],
+        },
+        content_type="application/json",
+    )
+    assert resp.status_code == 200, resp.json()
+    inv = resp.json()
+    assert inv["full_number"].endswith("-0007")
+    assert inv["total"] == "1000.00"
+    assert inv["status"] == "partially_paid"  # 500 < 1000
+
+    # Dubliko numeris – 400
+    inv2 = make_invoice_paid(api_client, cid)
+    resp = api_client.put(
+        f"/api/v1/invoices/{inv2['id']}",
+        {
+            "client_id": cid,
+            "number": 7,
+            "lines": [{"description": "x", "quantity": "1", "unit_price": "1.00"}],
+        },
+        content_type="application/json",
+    )
+    assert resp.status_code == 400
+
+    # Mokėjimo korekcija ir trynimas
+    pay_id = inv["payments"][0]["id"]
+    resp = api_client.put(
+        f"/api/v1/payments/{pay_id}",
+        {"amount": "300.00", "paid_at": "2026-02-10", "method": "cash", "doc_type": "kpo"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    resp = api_client.delete(f"/api/v1/payments/{pay_id}")
+    assert resp.status_code == 204
+    assert api_client.get(f"/api/v1/invoices/{inv['id']}").json()["status"] == "issued"
+
+    # Anuliavimas su mokėjimais – mokėjimai ištrinami
+    inv3 = make_invoice_paid(api_client, cid)
+    post_json(api_client, f"/api/v1/invoices/{inv3['id']}/cancel", {})
+    inv3 = api_client.get(f"/api/v1/invoices/{inv3['id']}").json()
+    assert inv3["status"] == "cancelled"
+    assert inv3["payments"] == []
+
+
 def test_journal_whole_year(api_client, tenant):
     cid = post_json(api_client, "/api/v1/clients", {"name": "K"}).json()["id"]
     make_invoice_paid(api_client, cid)  # apmokėta vasarį

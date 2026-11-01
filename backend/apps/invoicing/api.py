@@ -1,6 +1,6 @@
 from datetime import date
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Status
@@ -214,19 +214,33 @@ def get_invoice_view(request, invoice_id: int):
 def update_invoice(request, invoice_id: int, data: InvoiceIn):
     tenant = current_tenant(request)
     invoice = get_invoice(tenant, invoice_id)
-    if invoice.status != Invoice.Status.DRAFT:
-        raise HttpError(400, "Redaguoti galima tik juodraštį")
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise HttpError(400, "Anuliuotos sąskaitos redaguoti negalima")
     if not data.lines:
         raise HttpError(400, "Sąskaita turi turėti bent vieną eilutę")
     with transaction.atomic():
         invoice.client = get_client(tenant, data.client_id)
         invoice.due_date = data.due_date
         invoice.notes = data.notes
+        if invoice.status != Invoice.Status.DRAFT:
+            # korekcijos išrašytai sąskaitai: data ir numeracija
+            if data.issue_date is not None:
+                invoice.issue_date = data.issue_date
+            if data.series is not None:
+                invoice.series = data.series
+            if data.year is not None:
+                invoice.year = data.year
+            if data.number is not None:
+                invoice.number = data.number
         invoice.lines.all().delete()
         for i, line in enumerate(data.lines):
             invoice.lines.create(**line.model_dump(), order=i)
         invoice.recalc_total()
-        invoice.save()
+        invoice.recalc_status()
+        try:
+            invoice.save()
+        except IntegrityError:
+            raise HttpError(400, "Sąskaitos numeris jau užimtas") from None
     return get_invoice(tenant, invoice.id)
 
 
@@ -250,10 +264,10 @@ def cancel_invoice(request, invoice_id: int):
     invoice = get_invoice(current_tenant(request), invoice_id)
     if invoice.status == Invoice.Status.CANCELLED:
         raise HttpError(400, "Sąskaita jau atšaukta")
-    if invoice.payments.exists():
-        raise HttpError(400, "Negalima atšaukti sąskaitos su mokėjimais")
-    invoice.status = Invoice.Status.CANCELLED
-    invoice.save(update_fields=["status", "updated_at"])
+    with transaction.atomic():
+        invoice.payments.all().delete()  # anuliuojant – mokėjimai šalinami
+        invoice.status = Invoice.Status.CANCELLED
+        invoice.save(update_fields=["status", "updated_at"])
     return invoice
 
 
@@ -272,6 +286,37 @@ def add_payment(request, invoice_id: int, data: PaymentIn):
         invoice.recalc_status()
         invoice.save(update_fields=["status", "updated_at"])
     return Status(201, payment)
+
+
+def get_payment(tenant: Tenant, payment_id: int) -> Payment:
+    return get_object_or_404(Payment, id=payment_id, invoice__tenant=tenant)
+
+
+@router.put("/payments/{payment_id}", response=PaymentOut)
+def update_payment(request, payment_id: int, data: PaymentIn):
+    payment = get_payment(current_tenant(request), payment_id)
+    invoice = payment.invoice
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise HttpError(400, "Mokėjimai negalimi anuliuotai sąskaitai")
+    payload = data.model_dump()
+    with transaction.atomic():
+        for key, value in payload.items():
+            setattr(payment, key, value)
+        payment.save()
+        invoice.recalc_status()
+        invoice.save(update_fields=["status", "updated_at"])
+    return payment
+
+
+@router.delete("/payments/{payment_id}", response={204: None})
+def delete_payment(request, payment_id: int):
+    payment = get_payment(current_tenant(request), payment_id)
+    invoice = payment.invoice
+    with transaction.atomic():
+        payment.delete()
+        invoice.recalc_status()
+        invoice.save(update_fields=["status", "updated_at"])
+    return Status(204, None)
 
 
 @router.post("/invoices/{invoice_id}/send", response={200: dict, 400: dict})

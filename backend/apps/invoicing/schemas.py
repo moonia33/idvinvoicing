@@ -52,6 +52,11 @@ class InvoiceIn(Schema):
     due_date: date | None = None
     notes: str = ""
     lines: list[InvoiceLineIn]
+    # Korekcijos išrašytai sąskaitai (klaidų taisymas)
+    issue_date: date | None = None
+    series: str | None = None
+    year: int | None = None
+    number: int | None = None
 
 
 class PaymentIn(Schema):

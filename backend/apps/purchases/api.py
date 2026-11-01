@@ -79,7 +79,7 @@ def delete_supplier(request, supplier_id: int):
 
 
 def _purchase_values(tenant: Tenant, data: PurchaseIn) -> dict:
-    values = data.model_dump(exclude={"supplier_id", "category_id", "lines"})
+    values = data.model_dump(exclude={"supplier_id", "category_id", "lines", "paid_now"})
     values["supplier"] = get_supplier(tenant, data.supplier_id)
     if data.category_id:
         values["category"] = get_object_or_404(
@@ -115,6 +115,33 @@ def create_purchase(request, data: PurchaseIn):
             purchase.lines.create(**line.model_dump(), order=i)
         purchase.recalc_total()
         purchase.save(update_fields=["total"])
+        if data.paid_now:
+            purchase.payments.create(
+                amount_original=purchase.total,
+                exchange_rate=purchase.exchange_rate,
+                paid_at=purchase.document_date,
+                method=(
+                    PurchasePayment.Method.BANK
+                    if data.doc_type == Purchase.DocType.SF
+                    else PurchasePayment.Method.CASH
+                ),
+                doc_type=(
+                    PurchasePayment.DocType.KIO
+                    if data.doc_type == Purchase.DocType.KIO
+                    else (
+                        PurchasePayment.DocType.PPK
+                        if data.doc_type == Purchase.DocType.PPK
+                        else PurchasePayment.DocType.NONE
+                    )
+                ),
+                doc_number=(
+                    next_kio_number(tenant, purchase.document_date.year)
+                    if data.doc_type == Purchase.DocType.KIO
+                    else purchase.doc_number
+                ),
+            )
+            purchase.recalc_status()
+            purchase.save(update_fields=["status", "updated_at"])
     return Status(201, get_purchase(tenant, purchase.id))
 
 
@@ -129,8 +156,6 @@ def update_purchase(request, purchase_id: int, data: PurchaseIn):
     purchase = get_purchase(tenant, purchase_id)
     if purchase.status == Purchase.Status.CANCELLED:
         raise HttpError(400, "Anuliuoto pirkinio redaguoti negalima")
-    if purchase.payments.exists():
-        raise HttpError(400, "Pirkinys turi mokėjimų – redaguoti negalima")
     if not data.lines:
         raise HttpError(400, "Pirkinys turi turėti bent vieną eilutę")
     with transaction.atomic():
@@ -140,6 +165,7 @@ def update_purchase(request, purchase_id: int, data: PurchaseIn):
         for i, line in enumerate(data.lines):
             purchase.lines.create(**line.model_dump(), order=i)
         purchase.recalc_total()
+        purchase.recalc_status()
         purchase.save()
     return get_purchase(tenant, purchase.id)
 
@@ -147,9 +173,7 @@ def update_purchase(request, purchase_id: int, data: PurchaseIn):
 @router.delete("/purchases/{purchase_id}", response={204: None})
 def delete_purchase(request, purchase_id: int):
     purchase = get_purchase(current_tenant(request), purchase_id)
-    if purchase.payments.exists():
-        raise HttpError(400, "Pirkinys turi mokėjimų – pirmiausia juos anuliuokite (kreipkitės)")
-    purchase.delete()
+    purchase.delete()  # mokėjimai/eilutės – CASCADE
     return Status(204, None)
 
 
@@ -158,10 +182,10 @@ def cancel_purchase(request, purchase_id: int):
     purchase = get_purchase(current_tenant(request), purchase_id)
     if purchase.status == Purchase.Status.CANCELLED:
         raise HttpError(400, "Pirkinys jau anuliuotas")
-    if purchase.payments.exists():
-        raise HttpError(400, "Negalima anuliuoti pirkinio su mokėjimais")
-    purchase.status = Purchase.Status.CANCELLED
-    purchase.save(update_fields=["status", "updated_at"])
+    with transaction.atomic():
+        purchase.payments.all().delete()  # anuliuojant – mokėjimai šalinami
+        purchase.status = Purchase.Status.CANCELLED
+        purchase.save(update_fields=["status", "updated_at"])
     return purchase
 
 
@@ -180,6 +204,39 @@ def add_purchase_payment(request, purchase_id: int, data: PurchasePaymentIn):
         purchase.recalc_status()
         purchase.save(update_fields=["status", "updated_at"])
     return Status(201, payment)
+
+
+def get_purchase_payment(tenant: Tenant, payment_id: int) -> PurchasePayment:
+    return get_object_or_404(PurchasePayment, id=payment_id, purchase__tenant=tenant)
+
+
+@router.put("/purchase-payments/{payment_id}", response=PurchasePaymentOut)
+def update_purchase_payment(request, payment_id: int, data: PurchasePaymentIn):
+    payment = get_purchase_payment(current_tenant(request), payment_id)
+    purchase = payment.purchase
+    if purchase.status == Purchase.Status.CANCELLED:
+        raise HttpError(400, "Mokėjimai negalimi anuliuotam pirkiniui")
+    payload = data.model_dump()
+    if payload["exchange_rate"] is None:
+        payload["exchange_rate"] = payment.exchange_rate
+    with transaction.atomic():
+        for key, value in payload.items():
+            setattr(payment, key, value)
+        payment.save()  # save() perskaičiuoja amount_eur
+        purchase.recalc_status()
+        purchase.save(update_fields=["status", "updated_at"])
+    return payment
+
+
+@router.delete("/purchase-payments/{payment_id}", response={204: None})
+def delete_purchase_payment(request, payment_id: int):
+    payment = get_purchase_payment(current_tenant(request), payment_id)
+    purchase = payment.purchase
+    with transaction.atomic():
+        payment.delete()
+        purchase.recalc_status()
+        purchase.save(update_fields=["status", "updated_at"])
+    return Status(204, None)
 
 
 @router.get("/purchase-payments/{payment_id}/kio.pdf", response={200: None})

@@ -3,8 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
-	import type { Category, Contact, Purchase, Service } from '#lib/types';
-	import { fmtEur, UNITS, CURRENCIES } from '#lib/format';
+	import type { Category, Contact, Purchase, PurchaseDocKind, Service } from '#lib/types';
+	import { fmtEur, UNITS, CURRENCIES, PURCHASE_DOC_KINDS } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
 	import { Label } from '#lib/components/ui/label';
@@ -33,6 +33,7 @@
 	let services = $state<Service[]>([]);
 	let categories = $state<Category[]>([]);
 	let supplierId = $state('');
+	let docType = $state<PurchaseDocKind>('sf');
 	let docNumber = $state('');
 	let documentDate = $state(new Date().toISOString().slice(0, 10));
 	let dueDate = $state('');
@@ -40,6 +41,7 @@
 	let exchangeRate = $state('1');
 	let categoryId = $state('');
 	let deductible = $state(true);
+	let paidNow = $state(false);
 	let notes = $state('');
 	let lines = $state<Line[]>([emptyLine()]);
 	let error = $state('');
@@ -116,6 +118,7 @@
 				method: 'POST',
 				body: {
 					supplier_id: Number(supplierId),
+					doc_type: docType,
 					doc_number: docNumber,
 					document_date: documentDate,
 					due_date: dueDate || null,
@@ -123,6 +126,7 @@
 					exchange_rate: exchangeRate || '1',
 					category_id: categoryId ? Number(categoryId) : null,
 					deductible,
+					paid_now: paidNow,
 					notes,
 					lines: lines.map((l) => ({
 						description: l.description,
@@ -178,10 +182,24 @@
 						</Button>
 					</div>
 				</div>
-				<div class="grid grid-cols-2 gap-2">
+				<div class="grid grid-cols-3 gap-2">
 					<div class="space-y-1.5">
-						<Label>Tiekėjo dok. nr.</Label>
-						<Input bind:value={docNumber} placeholder="Pvz. FV-2026-99" />
+						<Label>Dokumentas</Label>
+						<Select.Root type="single" bind:value={docType}>
+							<Select.Trigger class="w-full">{PURCHASE_DOC_KINDS[docType]}</Select.Trigger>
+							<Select.Content>
+								{#each Object.entries(PURCHASE_DOC_KINDS) as [v, label] (v)}
+									<Select.Item value={v} {label}>{label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</div>
+					<div class="space-y-1.5">
+						<Label>Dok. nr.</Label>
+						<Input
+							bind:value={docNumber}
+							placeholder={docType === 'kio' ? 'Tuščia – KIO nr. auto' : 'Pvz. FV-2026-99'}
+						/>
 					</div>
 					<div class="space-y-1.5">
 						<Label>Dokumento data *</Label>
@@ -332,9 +350,14 @@
 			</div>
 
 			<div class="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-				<label class="flex items-center gap-2 text-sm">
-					<input type="checkbox" bind:checked={deductible} /> Leidžiami atskaitymai
-				</label>
+				<div class="flex flex-wrap items-center gap-4">
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={deductible} /> Leidžiami atskaitymai
+					</label>
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={paidNow} /> Apmokėta iškart
+					</label>
+				</div>
 				<span class="text-lg font-semibold">
 					Iš viso: {fmtEur(totalEur)}{#if currency !== 'EUR'}
 						<span class="text-sm font-normal text-muted-foreground">

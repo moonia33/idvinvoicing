@@ -46,6 +46,13 @@ export const PURCHASE_DOC_TYPES: Record<string, string> = {
 	ppk: 'Tiekėjo PPK'
 };
 
+export const PURCHASE_DOC_KINDS: Record<string, string> = {
+	sf: 'Sąskaita faktūra',
+	receipt: 'Kasos kvitas',
+	ppk: 'Pirkimo-pardavimo kvitas (PPK)',
+	kio: 'Kasos išlaidų orderis (KIO)'
+};
+
 export const CURRENCIES = ['EUR', 'PLN'] as const;
 
 export const FREQ_LABELS: Record<string, string> = {

@@ -194,10 +194,11 @@ def test_cancel_rules(api_client, purchase):
         {"amount_original": "10.00", "paid_at": "2026-01-15"},
     )
     r = api_client.post(f"/api/v1/purchases/{purchase['id']}/cancel")
-    assert r.status_code == 400  # su mokėjimais negalima
+    assert r.status_code == 200  # anuliuojama kartu su mokėjimais
+    assert r.json()["payments"] == []
 
 
-def test_edit_blocked_after_payment(api_client, purchase):
+def test_edit_after_payment(api_client, purchase):
     post_json(
         api_client,
         f"/api/v1/purchases/{purchase['id']}/payments",
@@ -212,4 +213,45 @@ def test_edit_blocked_after_payment(api_client, purchase):
         },
         content_type="application/json",
     )
-    assert r.status_code == 400
+    assert r.status_code == 200
+    assert r.json()["status"] == "paid"  # mokėjimas 10 >= nauja suma 1
+
+
+def test_paid_now_creates_payment(api_client, supplier):
+    r = api_client.post(
+        "/api/v1/purchases",
+        {
+            "supplier_id": supplier["id"],
+            "doc_type": "receipt",
+            "doc_number": "KV-777",
+            "document_date": "2026-02-01",
+            "paid_now": True,
+            "lines": [{"description": "Prekės", "quantity": "1", "unit_price": "25.00"}],
+        },
+        content_type="application/json",
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["status"] == "paid"
+    assert len(body["payments"]) == 1
+    p = body["payments"][0]
+    assert p["method"] == "cash"
+    assert p["amount_original"] == "25.00"
+    assert p["doc_number"] == "KV-777"
+
+
+def test_paid_now_kio_autonumber(api_client, supplier):
+    r = api_client.post(
+        "/api/v1/purchases",
+        {
+            "supplier_id": supplier["id"],
+            "doc_type": "kio",
+            "document_date": "2026-02-01",
+            "paid_now": True,
+            "lines": [{"description": "X", "quantity": "1", "unit_price": "5.00"}],
+        },
+        content_type="application/json",
+    )
+    assert r.status_code == 201
+    assert r.json()["payments"][0]["doc_type"] == "kio"
+    assert r.json()["payments"][0]["doc_number"].startswith("KIO-")
