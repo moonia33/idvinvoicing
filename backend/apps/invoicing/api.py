@@ -210,6 +210,45 @@ def get_invoice_view(request, invoice_id: int):
     return get_invoice(current_tenant(request), invoice_id)
 
 
+def _backdated_conflict(
+    tenant: Tenant, series: str, issue_date: date, exclude_id: int
+) -> Invoice | None:
+    """Ankstyviausia tos pačios serijos išrašyta sąskaita su vėlesne data."""
+    return (
+        Invoice.objects.filter(
+            tenant=tenant,
+            series=series,
+            status__in=[
+                Invoice.Status.ISSUED,
+                Invoice.Status.PARTIALLY_PAID,
+                Invoice.Status.PAID,
+            ],
+            issue_date__gt=issue_date,
+        )
+        .exclude(pk=exclude_id)
+        .order_by("issue_date")
+        .first()
+    )
+
+
+def _guard_backdated(
+    tenant: Tenant,
+    series: str,
+    issue_date: date,
+    exclude_id: int,
+    allow_backdated: bool,
+) -> None:
+    if allow_backdated:
+        return
+    other = _backdated_conflict(tenant, series, issue_date, exclude_id)
+    if other is not None:
+        raise HttpError(
+            400,
+            f"atgaline data: {other.full_number} jau išrašyta {other.issue_date}. "
+            "Jei sąskaita tikrai turi būti išrašyta atgaline data – patvirtinkite.",
+        )
+
+
 @router.put("/invoices/{invoice_id}", response=InvoiceOut)
 def update_invoice(request, invoice_id: int, data: InvoiceIn):
     tenant = current_tenant(request)
@@ -218,6 +257,14 @@ def update_invoice(request, invoice_id: int, data: InvoiceIn):
         raise HttpError(400, "Anuliuotos sąskaitos redaguoti negalima")
     if not data.lines:
         raise HttpError(400, "Sąskaita turi turėti bent vieną eilutę")
+    if invoice.status != Invoice.Status.DRAFT and data.issue_date is not None:
+        _guard_backdated(
+            tenant,
+            data.series if data.series is not None else invoice.series,
+            data.issue_date,
+            invoice.id,
+            data.allow_backdated,
+        )
     with transaction.atomic():
         invoice.client = get_client(tenant, data.client_id)
         invoice.due_date = data.due_date
@@ -252,8 +299,10 @@ def issue_invoice_view(request, invoice_id: int, data: IssueIn):
         raise HttpError(400, "Išrašyti galima tik juodraštį")
     if data.series:
         invoice.series = data.series
+    issue_date = data.issue_date or date.today()
+    _guard_backdated(tenant, invoice.series, issue_date, invoice.id, data.allow_backdated)
     try:
-        issue_invoice(invoice, data.issue_date or date.today(), data.due_date)
+        issue_invoice(invoice, issue_date, data.due_date)
     except ValueError as e:
         raise HttpError(400, str(e)) from e
     return get_invoice(tenant, invoice.id)

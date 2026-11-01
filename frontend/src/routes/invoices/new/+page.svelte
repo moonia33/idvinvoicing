@@ -126,10 +126,23 @@
 				}
 			});
 			if (issueNow) {
-				await api(`/invoices/${inv.id}/issue`, {
-					method: 'POST',
-					body: { issue_date: issueDate, due_date: dueDate || null }
-				});
+				const issueBody: Record<string, unknown> = {
+					issue_date: issueDate,
+					due_date: dueDate || null
+				};
+				try {
+					await api(`/invoices/${inv.id}/issue`, { method: 'POST', body: issueBody });
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : '';
+					if (msg.startsWith('atgaline data') && confirm(msg)) {
+						await api(`/invoices/${inv.id}/issue`, {
+							method: 'POST',
+							body: { ...issueBody, allow_backdated: true }
+						});
+					} else {
+						throw e;
+					}
+				}
 			}
 			goto(resolve('/invoices/[id]', { id: String(inv.id) }));
 		} catch (err) {

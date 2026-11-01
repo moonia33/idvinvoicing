@@ -118,6 +118,54 @@ def test_cancel_rules(api_client):
     assert r.json()["payments"] == []
 
 
+def test_backdated_issue_blocked(api_client):
+    cid = make_client(api_client)
+    inv1 = make_invoice(api_client, cid)
+    assert (
+        post_json(
+            api_client, f"/api/v1/invoices/{inv1['id']}/issue", {"issue_date": "2026-02-01"}
+        ).status_code
+        == 200
+    )
+    inv2 = make_invoice(api_client, cid)
+    r = post_json(
+        api_client, f"/api/v1/invoices/{inv2['id']}/issue", {"issue_date": "2026-01-15"}
+    )
+    assert r.status_code == 400
+    assert "atgaline data" in r.json()["detail"]
+    # patvirtinus – leidžiama
+    r = post_json(
+        api_client,
+        f"/api/v1/invoices/{inv2['id']}/issue",
+        {"issue_date": "2026-01-15", "allow_backdated": True},
+    )
+    assert r.status_code == 200
+    assert r.json()["issue_date"] == "2026-01-15"
+
+
+def test_backdated_edit_blocked(api_client):
+    cid = make_client(api_client)
+    inv1 = make_invoice(api_client, cid)
+    post_json(
+        api_client, f"/api/v1/invoices/{inv1['id']}/issue", {"issue_date": "2026-02-01"}
+    )
+    inv2 = make_invoice(api_client, cid)
+    post_json(
+        api_client, f"/api/v1/invoices/{inv2['id']}/issue", {"issue_date": "2026-02-10"}
+    )
+    r = api_client.put(
+        f"/api/v1/invoices/{inv2['id']}",
+        {
+            "client_id": cid,
+            "issue_date": "2026-01-20",
+            "lines": [{"description": "X", "quantity": "1", "unit_price": "1.00"}],
+        },
+        content_type="application/json",
+    )
+    assert r.status_code == 400
+    assert "atgaline data" in r.json()["detail"]
+
+
 def test_no_tenant_403(client, user):
     client.force_login(user)  # vartotojas be veiklos
     client.cookies.load({"csrftoken": "x"})

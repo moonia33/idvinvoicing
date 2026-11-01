@@ -66,22 +66,33 @@
 	async function saveEdit(e: SubmitEvent) {
 		e.preventDefault();
 		if (!invoice) return;
+		const body: Record<string, unknown> = {
+			client_id: invoice.client.id,
+			issue_date: editForm.issue_date || null,
+			due_date: editForm.due_date || null,
+			series: editForm.series || null,
+			number: editForm.number === '' ? null : Number(editForm.number),
+			notes: editForm.notes,
+			lines: editForm.lines
+		};
 		try {
-			invoice = await api<Invoice>(`/invoices/${id}`, {
-				method: 'PUT',
-				body: {
-					client_id: invoice.client.id,
-					issue_date: editForm.issue_date || null,
-					due_date: editForm.due_date || null,
-					series: editForm.series || null,
-					number: editForm.number === '' ? null : Number(editForm.number),
-					notes: editForm.notes,
-					lines: editForm.lines
-				}
-			});
+			invoice = await api<Invoice>(`/invoices/${id}`, { method: 'PUT', body });
 			editOpen = false;
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Klaida';
+			const msg = err instanceof Error ? err.message : '';
+			if (msg.startsWith('atgaline data') && confirm(msg)) {
+				try {
+					invoice = await api<Invoice>(`/invoices/${id}`, {
+						method: 'PUT',
+						body: { ...body, allow_backdated: true }
+					});
+					editOpen = false;
+				} catch (err2) {
+					error = err2 instanceof Error ? err2.message : 'Klaida';
+				}
+			} else {
+				error = msg || 'Klaida';
+			}
 		}
 	}
 
@@ -124,7 +135,19 @@
 	onMount(load);
 
 	async function issue() {
-		invoice = await api<Invoice>(`/invoices/${id}/issue`, { method: 'POST', body: {} });
+		try {
+			invoice = await api<Invoice>(`/invoices/${id}/issue`, { method: 'POST', body: {} });
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : '';
+			if (msg.startsWith('atgaline data') && confirm(msg)) {
+				invoice = await api<Invoice>(`/invoices/${id}/issue`, {
+					method: 'POST',
+					body: { allow_backdated: true }
+				});
+			} else {
+				error = msg;
+			}
+		}
 	}
 
 	async function cancel() {

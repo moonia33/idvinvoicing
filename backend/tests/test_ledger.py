@@ -74,7 +74,7 @@ def test_edit_issued_invoice_and_payments(api_client):
     assert inv["status"] == "partially_paid"  # 500 < 1000
 
     # Dubliko numeris – 400
-    inv2 = make_invoice_paid(api_client, cid)
+    inv2 = make_invoice_paid(api_client, cid, issue="2026-01-20")
     resp = api_client.put(
         f"/api/v1/invoices/{inv2['id']}",
         {

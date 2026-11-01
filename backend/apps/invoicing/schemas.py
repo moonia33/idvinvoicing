@@ -57,6 +57,7 @@ class InvoiceIn(Schema):
     series: str | None = None
     year: int | None = None
     number: int | None = None
+    allow_backdated: bool = False
 
 
 class PaymentIn(Schema):
@@ -76,6 +77,7 @@ class IssueIn(Schema):
     issue_date: date | None = None
     due_date: date | None = None
     series: str | None = None
+    allow_backdated: bool = False
 
 
 class InvoiceOut(Schema):
