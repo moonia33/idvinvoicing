@@ -160,12 +160,15 @@ def compute_taxes(
     insured = bool(getattr(profile, "insured_elsewhere", False))
     pension = bool(getattr(profile, "pension_accrual", False))
     vsd_relief = bool(getattr(profile, "vsd_holiday", False))
-    if insured:
+    sodra_exempt = bool(getattr(profile, "sodra_exempt", False))
+    if insured and not sodra_exempt:
         warnings.append(
             "Draustas kitur: VSD/PSD be MMA minimumo, bet metų gale nuo 90 % AP vis tiek mokami."
         )
     if vsd_relief:
         warnings.append("Pirmoji veikla: VSD atostogos – įmokos nemokamos iki 12 mėn.")
+    if sodra_exempt:
+        warnings.append("Pensininkas / draustas valstybės lėšomis: VSD ir PSD nemokami.")
 
     # Kiek langinio lango mėnesių veikla realiai vyko (minimumas – tik už juos)
     start = getattr(profile, "activity_start", None)
@@ -199,21 +202,36 @@ def compute_taxes(
     vsd_rate = rule.vsd_rate_pension if pension else rule.vsd_rate
     # VSD individualiai veiklai – be MMA minimumo (tik metinė luba 43 x VDU)
     vsd = _social(
-        taxable_income, vsd_rate, rule, active_months, exempt=vsd_relief, no_minimum=True
+        taxable_income,
+        vsd_rate,
+        rule,
+        active_months,
+        exempt=vsd_relief or sodra_exempt,
+        no_minimum=True,
     )
     psd = _social(
         taxable_income,
         rule.psd_rate,
         rule,
         active_months,
+        exempt=sodra_exempt,
         no_minimum=insured or psd_paid_elsewhere,
     )
+
+    # VSD stažas: 12 MMA/metus įmokų bazė = 1 metai stažo (Sodra)
+    if vsd.amount > 0 and rule.mma_monthly > 0:
+        staz = min(Decimal("12"), _q(vsd.base / rule.mma_monthly))
+        if staz < 12:
+            warnings.append(
+                f"VSD stažas: įmokos nuo {vsd.base} EUR bazės ≈ {staz} mėn. stažo "
+                f"(12 mėn. = 1 metai; iki pilno stažo dar {(12 - staz):g} mėn.)."
+            )
 
     for line, kind in ((gpm, "gpm"), (vsd, "vsd"), (psd, "psd")):
         line.paid = _tax_paid(tenant, kind, year)
         line.remaining = _q(max(line.amount - line.paid, Decimal("0")))
 
-    # Mėnesių suvestinė: pajamos/pelnas per mėn. + mėnesinės VSD/PSD įmokos.
+    # Mėnesių suvestinė: pajamos/apmokestinamosios pajamos + mėnesinės VSD/PSD įmokos.
     monthly: list[MonthRow] = []
     for m in range(1, months + 1):
         s = journal_summary(journal_rows(tenant, year, m))

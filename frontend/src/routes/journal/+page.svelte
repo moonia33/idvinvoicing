@@ -117,7 +117,7 @@
 		>
 		<Card.Root
 			><Card.Content class="pt-4"
-				><div class="text-xs text-muted-foreground">Rezultatas</div>
+				><div class="text-xs text-muted-foreground">Pajamos − išlaidos</div>
 				<div class="text-xl font-semibold">{fmtEur(journal.net)}</div></Card.Content
 			></Card.Root
 		>

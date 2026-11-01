@@ -142,8 +142,8 @@ def upload_logo(request, file: UploadedFile = File(...)):  # noqa: B008
     try:
         from PIL import Image
 
-        img = Image.open(BytesIO(data))
-        img = img.convert("RGBA") if img.mode in ("P", "LA") else img
+        with Image.open(BytesIO(data)) as raw:
+            img = raw.convert("RGBA") if raw.mode in ("P", "LA") else raw.copy()
         img.thumbnail((480, 480))
         buf = BytesIO()
         img.save(buf, format="PNG", optimize=True)

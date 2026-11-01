@@ -27,6 +27,7 @@
 		insured_elsewhere: false,
 		pension_accrual: false,
 		vsd_holiday: false,
+		sodra_exempt: false,
 		activity_start: null as string | null
 	});
 	let smtp = $state({
@@ -228,7 +229,7 @@
 				<label class="flex items-center gap-2 text-sm">
 					<input type="checkbox" bind:checked={profile.insured_elsewhere} />
 					Dirbu pagal darbo sutartį (draustas kitur – be MMA minimumo, bet metų gale VSD/PSD nuo 90 %
-					pelno vis tiek skaičiuojami)
+					apmokestinamųjų pajamų vis tiek skaičiuojami)
 				</label>
 				<label class="flex items-center gap-2 text-sm">
 					<input type="checkbox" bind:checked={profile.pension_accrual} />
@@ -237,6 +238,10 @@
 				<label class="flex items-center gap-2 text-sm">
 					<input type="checkbox" bind:checked={profile.vsd_holiday} />
 					Pirmoji individuali veikla – VSD atostogos (nemokama iki 12 mėn. nuo veiklos pradžios)
+				</label>
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" bind:checked={profile.sodra_exempt} />
+					Pensininkas / draustas valstybės lėšomis – VSD ir PSD visiškai nemokami
 				</label>
 				{#if profileMsg}<p class="text-sm text-green-600">{profileMsg}</p>{/if}
 			</Card.Content>

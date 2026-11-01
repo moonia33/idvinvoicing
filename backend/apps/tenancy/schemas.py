@@ -48,6 +48,7 @@ class ProfileIn(Schema):
     insured_elsewhere: bool = False
     pension_accrual: bool = False
     vsd_holiday: bool = False
+    sodra_exempt: bool = False
     activity_start: date | None = None
 
 

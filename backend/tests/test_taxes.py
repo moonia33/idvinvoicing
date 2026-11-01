@@ -61,6 +61,24 @@ def test_gpm_flat_and_top_rates(api_client, tenant):
     assert s["gpm"]["amount"] == "11480.00"
 
 
+def test_sodra_exempt(api_client, tenant):
+    """Pensininkas / draustas valstybės lėšomis – VSD ir PSD visiškai nemokami."""
+    tenant.profile.sodra_exempt = True
+    tenant.profile.save()
+    paid_invoice(api_client, "30000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    assert s["vsd"]["amount"] == "0.00"
+    assert s["psd"]["amount"] == "0.00"
+    assert any("nemokami" in w for w in s["warnings"])
+
+
+def test_vsd_stazas_warning(api_client, tenant):
+    """Mažesnei nei 12 MMA VSD bazei – įspėjimas apie nepilną stažą."""
+    paid_invoice(api_client, "10000.00")
+    s = api_client.get("/api/v1/taxes/summary?year=2025").json()
+    assert any("stažas" in w.lower() for w in s["warnings"])
+
+
 def test_gpm_marginal_bands(api_client, tenant):
     # AP 140 000 (pajamos 200k, 30%): 80 928x20% + 53 952x25% + 5 120x32% = 31 312,00
     paid_invoice(api_client, "200000.00")

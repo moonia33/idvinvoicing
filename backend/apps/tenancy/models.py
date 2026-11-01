@@ -79,6 +79,9 @@ class SellerProfile(models.Model):
         "Papildomas pensijos kaupimas (VSD 15,52%)", default=False
     )
     vsd_holiday = models.BooleanField("Pirmoji veikla – VSD atostogos (iki 12 mėn.)", default=False)
+    sodra_exempt = models.BooleanField(
+        "Pensininkas / draustas valstybės lėšomis (VSD ir PSD nemokami)", default=False
+    )
     activity_start = models.DateField("Individualios veiklos pradžios data", null=True, blank=True)
     logo = models.TextField(
         "Logotipas (data:image/...;base64,...)",

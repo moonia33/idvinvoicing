@@ -28,6 +28,7 @@ export interface Profile {
 	insured_elsewhere: boolean;
 	pension_accrual: boolean;
 	vsd_holiday: boolean;
+	sodra_exempt: boolean;
 	activity_start: string | null;
 	logo?: string;
 }

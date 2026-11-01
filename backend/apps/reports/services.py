@@ -51,7 +51,7 @@ def journal_workbook(tenant: Tenant, year: int, month: int | None = None) -> byt
         ("Pajamos iš viso", s["income_total"]),
         ("Išlaidos iš viso", s["expense_total"]),
         ("Leidžiami atskaitymai", s["deductible_total"]),
-        ("Grynasis rezultatas", s["net"]),
+        ("Pajamos − išlaidos", s["net"]),
     ]:
         ws.append(["", "", "", label, float(value)])
         ws[ws.max_row][3].font = BOLD
