@@ -132,15 +132,23 @@ def test_backdated_issue_blocked(api_client):
         api_client, f"/api/v1/invoices/{inv2['id']}/issue", {"issue_date": "2026-01-15"}
     )
     assert r.status_code == 400
-    assert "atgaline data" in r.json()["detail"]
-    # patvirtinus – leidžiama
+    assert "chronologija" in r.json()["detail"]
+    # apėjimo nėra – ir su allow_backdated vėliavele
     r = post_json(
         api_client,
         f"/api/v1/invoices/{inv2['id']}/issue",
         {"issue_date": "2026-01-15", "allow_backdated": True},
     )
+    assert r.status_code == 400
+    # sprendimas: ankstesnė data su KITA serija – leidžiama (atskira seka)
+    r = post_json(
+        api_client,
+        f"/api/v1/invoices/{inv2['id']}/issue",
+        {"issue_date": "2026-01-15", "series": "SFK"},
+    )
     assert r.status_code == 200
     assert r.json()["issue_date"] == "2026-01-15"
+    assert r.json()["full_number"].startswith("SFK-")
 
 
 def test_backdated_edit_blocked(api_client):
@@ -163,7 +171,7 @@ def test_backdated_edit_blocked(api_client):
         content_type="application/json",
     )
     assert r.status_code == 400
-    assert "atgaline data" in r.json()["detail"]
+    assert "chronologija" in r.json()["detail"]
 
 
 def test_no_tenant_403(client, user):

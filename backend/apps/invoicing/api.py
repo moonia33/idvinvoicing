@@ -210,42 +210,53 @@ def get_invoice_view(request, invoice_id: int):
     return get_invoice(current_tenant(request), invoice_id)
 
 
-def _backdated_conflict(
-    tenant: Tenant, series: str, issue_date: date, exclude_id: int
-) -> Invoice | None:
-    """Ankstyviausia tos pačios serijos išrašyta sąskaita su vėlesne data."""
-    return (
-        Invoice.objects.filter(
-            tenant=tenant,
-            series=series,
-            status__in=[
-                Invoice.Status.ISSUED,
-                Invoice.Status.PARTIALLY_PAID,
-                Invoice.Status.PAID,
-            ],
-            issue_date__gt=issue_date,
-        )
-        .exclude(pk=exclude_id)
-        .order_by("issue_date")
-        .first()
-    )
-
-
-def _guard_backdated(
+def _chronology_conflict(
     tenant: Tenant,
     series: str,
+    year: int,
     issue_date: date,
+    number: int | None,
     exclude_id: int,
-    allow_backdated: bool,
+) -> Invoice | None:
+    """Sąskaita, su kuria būtų pažeista numeracijos chronologija toje serijoje.
+
+    number=None – naujas (suinteikiamas) numeris, didesnis už visus esamus.
+    """
+    others = Invoice.objects.filter(
+        tenant=tenant,
+        series=series,
+        year=year,
+        status__in=[
+            Invoice.Status.ISSUED,
+            Invoice.Status.PARTIALLY_PAID,
+            Invoice.Status.PAID,
+        ],
+    ).exclude(pk=exclude_id)
+    for o in others:
+        if o.issue_date is None or o.issue_date == issue_date:
+            continue
+        if number is None:
+            if o.issue_date > issue_date:
+                return o
+        elif o.number is not None and (o.issue_date < issue_date) == (o.number > number):
+            return o
+    return None
+
+
+def _guard_chronology(
+    tenant: Tenant,
+    series: str,
+    year: int,
+    issue_date: date,
+    number: int | None,
+    exclude_id: int,
 ) -> None:
-    if allow_backdated:
-        return
-    other = _backdated_conflict(tenant, series, issue_date, exclude_id)
+    other = _chronology_conflict(tenant, series, year, issue_date, number, exclude_id)
     if other is not None:
         raise HttpError(
             400,
-            f"atgaline data: {other.full_number} jau išrašyta {other.issue_date}. "
-            "Jei sąskaita tikrai turi būti išrašyta atgaline data – patvirtinkite.",
+            f"Numeracija su chronologija negali būti pažeista: {other.full_number} "
+            f"išrašyta {other.issue_date}. Pakeiskite datą arba sąskaitos numerį/seriją.",
         )
 
 
@@ -257,14 +268,12 @@ def update_invoice(request, invoice_id: int, data: InvoiceIn):
         raise HttpError(400, "Anuliuotos sąskaitos redaguoti negalima")
     if not data.lines:
         raise HttpError(400, "Sąskaita turi turėti bent vieną eilutę")
-    if invoice.status != Invoice.Status.DRAFT and data.issue_date is not None:
-        _guard_backdated(
-            tenant,
-            data.series if data.series is not None else invoice.series,
-            data.issue_date,
-            invoice.id,
-            data.allow_backdated,
-        )
+    if invoice.status != Invoice.Status.DRAFT:
+        eff_series = data.series if data.series is not None else invoice.series
+        eff_date = data.issue_date or invoice.issue_date or date.today()
+        eff_year = data.year or eff_date.year
+        eff_number = data.number if data.number is not None else invoice.number
+        _guard_chronology(tenant, eff_series, eff_year, eff_date, eff_number, invoice.id)
     with transaction.atomic():
         invoice.client = get_client(tenant, data.client_id)
         invoice.due_date = data.due_date
@@ -273,6 +282,7 @@ def update_invoice(request, invoice_id: int, data: InvoiceIn):
             # korekcijos išrašytai sąskaitai: data ir numeracija
             if data.issue_date is not None:
                 invoice.issue_date = data.issue_date
+                invoice.year = data.issue_date.year
             if data.series is not None:
                 invoice.series = data.series
             if data.year is not None:
@@ -300,7 +310,9 @@ def issue_invoice_view(request, invoice_id: int, data: IssueIn):
     if data.series:
         invoice.series = data.series
     issue_date = data.issue_date or date.today()
-    _guard_backdated(tenant, invoice.series, issue_date, invoice.id, data.allow_backdated)
+    _guard_chronology(
+        tenant, invoice.series, issue_date.year, issue_date, None, invoice.id
+    )
     try:
         issue_invoice(invoice, issue_date, data.due_date)
     except ValueError as e:

@@ -79,20 +79,7 @@
 			invoice = await api<Invoice>(`/invoices/${id}`, { method: 'PUT', body });
 			editOpen = false;
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : '';
-			if (msg.startsWith('atgaline data') && confirm(msg)) {
-				try {
-					invoice = await api<Invoice>(`/invoices/${id}`, {
-						method: 'PUT',
-						body: { ...body, allow_backdated: true }
-					});
-					editOpen = false;
-				} catch (err2) {
-					error = err2 instanceof Error ? err2.message : 'Klaida';
-				}
-			} else {
-				error = msg || 'Klaida';
-			}
+			error = err instanceof Error ? err.message : 'Klaida';
 		}
 	}
 
@@ -138,15 +125,7 @@
 		try {
 			invoice = await api<Invoice>(`/invoices/${id}/issue`, { method: 'POST', body: {} });
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : '';
-			if (msg.startsWith('atgaline data') && confirm(msg)) {
-				invoice = await api<Invoice>(`/invoices/${id}/issue`, {
-					method: 'POST',
-					body: { allow_backdated: true }
-				});
-			} else {
-				error = msg;
-			}
+			error = err instanceof Error ? err.message : 'Klaida';
 		}
 	}
 
