@@ -111,7 +111,11 @@ def delete_entry(request, entry_id: int):
 
 @router.get("/ledger/journal", response=JournalOut)
 def journal(request, year: int, month: int):
-    if not 1 <= month <= 12:
+    if not 0 <= month <= 12:
         raise HttpError(400, "Neteisingas mėnuo")
-    rows = journal_rows(current_tenant(request), year, month)
+    tenant = current_tenant(request)
+    if month == 0:
+        rows = [r for m in range(1, 13) for r in journal_rows(tenant, year, m)]
+    else:
+        rows = journal_rows(tenant, year, month)
     return {"rows": rows, **journal_summary(rows)}

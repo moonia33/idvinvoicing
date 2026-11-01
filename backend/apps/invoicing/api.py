@@ -44,6 +44,12 @@ def get_client(tenant: Tenant, client_id: int) -> Counterparty:
     return get_object_or_404(Counterparty, id=client_id, tenant=tenant)
 
 
+@router.get("/counterparties", response=list[ContactOut])
+def list_counterparties(request):
+    """Visi kontaktai – tiek klientai, tiek tiekėjai."""
+    return Counterparty.objects.filter(tenant=current_tenant(request))
+
+
 # --- Clients (kontaktai su is_client=True) ---
 
 

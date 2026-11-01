@@ -51,6 +51,15 @@ def test_journal_cash_basis(api_client, tenant):
     assert feb["income_total"] == "500.00"
 
 
+def test_journal_whole_year(api_client, tenant):
+    cid = post_json(api_client, "/api/v1/clients", {"name": "K"}).json()["id"]
+    make_invoice_paid(api_client, cid)  # apmokėta vasarį
+    year = api_client.get("/api/v1/ledger/journal?year=2026&month=0").json()
+    assert year["income_total"] == "500.00"
+    assert len(year["rows"]) == 1
+    assert api_client.get("/api/v1/ledger/journal?year=2026&month=13").status_code == 400
+
+
 def test_journal_accrual_basis(api_client, tenant):
     api_client.put(
         "/api/v1/profile",

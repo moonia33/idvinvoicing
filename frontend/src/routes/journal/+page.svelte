@@ -40,6 +40,41 @@
 		psd: 'PSD'
 	};
 
+	let counterparties = $state<string[]>([]);
+
+	const MONTH_NAMES = [
+		'',
+		'Sausis',
+		'Vasaris',
+		'Kovas',
+		'Balandis',
+		'Gegužė',
+		'Birželis',
+		'Liepa',
+		'Rugpjūtis',
+		'Rugsėjis',
+		'Spalis',
+		'Lapkritis',
+		'Gruodis'
+	];
+
+	const byMonth = $derived.by(() => {
+		const rows = journal?.rows ?? [];
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- skaičiavime naudojamas laikinas Map, ne reaktyvi būsena
+		const groups = new Map<number, typeof rows>();
+		for (const r of rows) {
+			const m = Number(r.date.slice(5, 7));
+			if (!groups.has(m)) groups.set(m, []);
+			groups.get(m)!.push(r);
+		}
+		return [...groups.entries()].map(([m, rs]) => ({
+			month: m,
+			rows: rs,
+			income: rs.filter((x) => x.kind === 'income').reduce((a, x) => a + Number(x.amount), 0),
+			expense: rs.filter((x) => x.kind === 'expense').reduce((a, x) => a + Number(x.amount), 0)
+		}));
+	});
+
 	async function load() {
 		[journal, entries] = await Promise.all([
 			api<Journal>(`/ledger/journal?year=${year}&month=${month}`),
@@ -47,7 +82,11 @@
 		]);
 	}
 
-	onMount(load);
+	onMount(async () => {
+		await load();
+		const cps = await api<{ name: string }[]>('/counterparties');
+		counterparties = cps.map((c) => c.name);
+	});
 
 	async function saveEntry(e: SubmitEvent) {
 		e.preventDefault();
@@ -84,8 +123,9 @@
 				load();
 			}}
 		>
-			<Select.Trigger class="w-32">{month} mėn.</Select.Trigger>
+			<Select.Trigger class="w-36">{month === 0 ? 'Visi metai' : `${month} mėn.`}</Select.Trigger>
 			<Select.Content>
+				<Select.Item value="0" label="Visi metai">Visi metai</Select.Item>
 				{#each Array.from({ length: 12 }, (_, i) => i + 1) as m (m)}
 					<Select.Item value={String(m)} label="{m} mėn.">{m} mėn.</Select.Item>
 				{/each}
@@ -134,19 +174,42 @@
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
-			{#each journal?.rows ?? [] as r, i (i)}
-				<Table.Row>
-					<Table.Cell>{r.date}</Table.Cell>
-					<Table.Cell
-						><Badge variant={r.kind === 'income' ? 'default' : 'secondary'}
-							>{r.kind === 'income' ? 'Pajamos' : 'Išlaidos'}</Badge
-						></Table.Cell
-					>
-					<Table.Cell>{r.description} {r.deductible ? '·atsk.' : ''}</Table.Cell>
-					<Table.Cell>{r.counterparty}</Table.Cell>
-					<Table.Cell class="text-right">{fmtEur(r.amount)}</Table.Cell>
-				</Table.Row>
-			{/each}
+			{#if month === 0}
+				{#each byMonth as g (g.month)}
+					<Table.Row class="bg-muted/50 font-medium">
+						<Table.Cell colspan={3}>{MONTH_NAMES[g.month]}</Table.Cell>
+						<Table.Cell class="text-muted-foreground">{g.rows.length} įraš.</Table.Cell>
+						<Table.Cell class="text-right">{fmtEur(g.income - g.expense)}</Table.Cell>
+					</Table.Row>
+					{#each g.rows as r, i (i)}
+						<Table.Row>
+							<Table.Cell>{r.date}</Table.Cell>
+							<Table.Cell
+								><Badge variant={r.kind === 'income' ? 'default' : 'secondary'}
+									>{r.kind === 'income' ? 'Pajamos' : 'Išlaidos'}</Badge
+								></Table.Cell
+							>
+							<Table.Cell>{r.description} {r.deductible ? '·atsk.' : ''}</Table.Cell>
+							<Table.Cell>{r.counterparty}</Table.Cell>
+							<Table.Cell class="text-right">{fmtEur(r.amount)}</Table.Cell>
+						</Table.Row>
+					{/each}
+				{/each}
+			{:else}
+				{#each journal?.rows ?? [] as r, i (i)}
+					<Table.Row>
+						<Table.Cell>{r.date}</Table.Cell>
+						<Table.Cell
+							><Badge variant={r.kind === 'income' ? 'default' : 'secondary'}
+								>{r.kind === 'income' ? 'Pajamos' : 'Išlaidos'}</Badge
+							></Table.Cell
+						>
+						<Table.Cell>{r.description} {r.deductible ? '·atsk.' : ''}</Table.Cell>
+						<Table.Cell>{r.counterparty}</Table.Cell>
+						<Table.Cell class="text-right">{fmtEur(r.amount)}</Table.Cell>
+					</Table.Row>
+				{/each}
+			{/if}
 		</Table.Body>
 	</Table.Root>
 </Card.Root>
@@ -209,7 +272,15 @@
 				</div>
 			</div>
 			<div class="space-y-1.5">
-				<Label>Kontragentas</Label><Input bind:value={form.counterparty} />
+				<Label>Kontragentas</Label>
+				<Input
+					bind:value={form.counterparty}
+					list="cp-list"
+					placeholder="Klientas arba tiekėjas…"
+				/>
+				<datalist id="cp-list">
+					{#each counterparties as n (n)}<option value={n}></option>{/each}
+				</datalist>
 			</div>
 			<div class="space-y-1.5"><Label>Aprašymas</Label><Input bind:value={form.description} /></div>
 			<div class="grid grid-cols-3 gap-3">
