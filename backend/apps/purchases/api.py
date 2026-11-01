@@ -79,7 +79,16 @@ def delete_supplier(request, supplier_id: int):
 
 
 def _purchase_values(tenant: Tenant, data: PurchaseIn) -> dict:
-    values = data.model_dump(exclude={"supplier_id", "category_id", "lines", "paid_now"})
+    values = data.model_dump(
+        exclude={
+            "supplier_id",
+            "category_id",
+            "lines",
+            "paid_now",
+            "paid_method",
+            "paid_doc_number",
+        }
+    )
     values["supplier"] = get_supplier(tenant, data.supplier_id)
     if data.category_id:
         values["category"] = get_object_or_404(
@@ -116,28 +125,35 @@ def create_purchase(request, data: PurchaseIn):
         purchase.recalc_total()
         purchase.save(update_fields=["total"])
         if data.paid_now:
+            pay_doc_type = (
+                PurchasePayment.DocType.KIO
+                if data.doc_type == Purchase.DocType.KIO
+                else (
+                    PurchasePayment.DocType.PPK
+                    if data.doc_type == Purchase.DocType.PPK
+                    else PurchasePayment.DocType.NONE
+                )
+            )
             purchase.payments.create(
                 amount_original=purchase.total,
                 exchange_rate=purchase.exchange_rate,
                 paid_at=purchase.document_date,
                 method=(
-                    PurchasePayment.Method.BANK
-                    if data.doc_type == Purchase.DocType.SF
-                    else PurchasePayment.Method.CASH
-                ),
-                doc_type=(
-                    PurchasePayment.DocType.KIO
-                    if data.doc_type == Purchase.DocType.KIO
-                    else (
-                        PurchasePayment.DocType.PPK
-                        if data.doc_type == Purchase.DocType.PPK
-                        else PurchasePayment.DocType.NONE
+                    data.paid_method
+                    or (
+                        PurchasePayment.Method.BANK
+                        if data.doc_type == Purchase.DocType.SF
+                        else PurchasePayment.Method.CASH
                     )
                 ),
+                doc_type=pay_doc_type,
                 doc_number=(
-                    next_kio_number(tenant, purchase.document_date.year)
-                    if data.doc_type == Purchase.DocType.KIO
-                    else purchase.doc_number
+                    data.paid_doc_number
+                    or (
+                        next_kio_number(tenant, purchase.document_date.year)
+                        if data.doc_type == Purchase.DocType.KIO
+                        else purchase.doc_number
+                    )
                 ),
             )
             purchase.recalc_status()

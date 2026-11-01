@@ -339,7 +339,7 @@
 {/if}
 
 <Dialog.Root bind:open={editOpen}>
-	<Dialog.Content class="max-w-2xl">
+	<Dialog.Content class="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
 		<Dialog.Header><Dialog.Title>Redaguoti sąskaitą</Dialog.Title></Dialog.Header>
 		<form onsubmit={saveEdit} class="space-y-3">
 			<div class="grid grid-cols-4 gap-3">

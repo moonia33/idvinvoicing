@@ -240,6 +240,27 @@ def test_paid_now_creates_payment(api_client, supplier):
     assert p["doc_number"] == "KV-777"
 
 
+def test_paid_now_bank_transfer(api_client, supplier):
+    r = api_client.post(
+        "/api/v1/purchases",
+        {
+            "supplier_id": supplier["id"],
+            "doc_type": "sf",
+            "doc_number": "INV-9",
+            "document_date": "2026-02-02",
+            "paid_now": True,
+            "paid_method": "bank",
+            "paid_doc_number": "OP-123",
+            "lines": [{"description": "Paslauga", "quantity": "1", "unit_price": "50.00"}],
+        },
+        content_type="application/json",
+    )
+    assert r.status_code == 201
+    p = r.json()["payments"][0]
+    assert p["method"] == "bank"
+    assert p["doc_number"] == "OP-123"
+
+
 def test_paid_now_kio_autonumber(api_client, supplier):
     r = api_client.post(
         "/api/v1/purchases",

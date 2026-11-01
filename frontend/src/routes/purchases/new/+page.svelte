@@ -3,8 +3,15 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
-	import type { Category, Contact, Purchase, PurchaseDocKind, Service } from '#lib/types';
-	import { fmtEur, UNITS, CURRENCIES, PURCHASE_DOC_KINDS } from '#lib/format';
+	import type {
+		Category,
+		Contact,
+		PaymentMethod,
+		Purchase,
+		PurchaseDocKind,
+		Service
+	} from '#lib/types';
+	import { fmtEur, UNITS, CURRENCIES, PURCHASE_DOC_KINDS, PAYMENT_METHODS } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
 	import { Label } from '#lib/components/ui/label';
@@ -42,7 +49,13 @@
 	let categoryId = $state('');
 	let deductible = $state(true);
 	let paidNow = $state(false);
+	let paidMethod = $state<PaymentMethod>('bank');
+	let paidDocNumber = $state('');
 	let notes = $state('');
+
+	$effect(() => {
+		if (paidNow) paidMethod = docType === 'sf' ? 'bank' : 'cash';
+	});
 	let lines = $state<Line[]>([emptyLine()]);
 	let error = $state('');
 	let saving = $state(false);
@@ -127,6 +140,8 @@
 					category_id: categoryId ? Number(categoryId) : null,
 					deductible,
 					paid_now: paidNow,
+					paid_method: paidNow ? paidMethod : null,
+					paid_doc_number: paidNow ? paidDocNumber : '',
 					notes,
 					lines: lines.map((l) => ({
 						description: l.description,
@@ -343,6 +358,33 @@
 					<Plus class="size-4" /> Pridėti eilutę
 				</Button>
 			</div>
+
+			{#if paidNow}
+				<div class="grid gap-4 rounded-md border border-dashed p-3 sm:grid-cols-3">
+					<div class="space-y-1.5">
+						<Label>Mokėjimo būdas</Label>
+						<Select.Root type="single" bind:value={paidMethod}>
+							<Select.Trigger class="w-full">{PAYMENT_METHODS[paidMethod]}</Select.Trigger>
+							<Select.Content>
+								{#each Object.entries(PAYMENT_METHODS) as [v, label] (v)}
+									<Select.Item value={v} {label}>{label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</div>
+					<div class="space-y-1.5 sm:col-span-2">
+						<Label>Mokėjimo dok. nr.</Label>
+						<Input
+							bind:value={paidDocNumber}
+							placeholder={docType === 'kio'
+								? 'Tuščia – KIO nr. suteikiamas automatiškai'
+								: docType === 'sf'
+									? 'Pvz. banko operacijos nr.'
+									: 'Kvito/dokumento nr.'}
+						/>
+					</div>
+				</div>
+			{/if}
 
 			<div class="space-y-1.5">
 				<Label>Pastabos</Label>

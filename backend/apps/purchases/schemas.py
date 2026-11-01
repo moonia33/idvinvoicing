@@ -31,6 +31,8 @@ class PurchaseIn(Schema):
     deductible: bool = True
     notes: str = ""
     paid_now: bool = False  # kuriant – iškart registruoti pilną mokėjimą
+    paid_method: PurchasePayment.Method | None = None  # None -> pagal doc_type
+    paid_doc_number: str = ""
     lines: list[PurchaseLineIn]
 
 
