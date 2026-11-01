@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
-	import type { Contact, Invoice, Service } from '#lib/types';
+	import type { Contact, Invoice, InvoiceSeries, Service } from '#lib/types';
 	import { fmtEur, UNITS } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
@@ -31,6 +31,8 @@
 
 	let clients = $state<Contact[]>([]);
 	let services = $state<Service[]>([]);
+	let seriesList = $state<InvoiceSeries[]>([]);
+	let series = $state('');
 	let clientId = $state('');
 	let issueDate = $state(new Date().toISOString().slice(0, 10));
 	let dueDate = $state('');
@@ -49,15 +51,17 @@
 	let serviceLineIdx = $state(0);
 
 	onMount(async () => {
-		[clients, services] = await Promise.all([
+		[clients, services, seriesList] = await Promise.all([
 			api<Contact[]>('/clients'),
-			api<Service[]>('/services?usage=sale')
+			api<Service[]>('/services?usage=sale'),
+			api<InvoiceSeries[]>('/invoice-series')
 		]);
+		series = seriesList.find((s) => s.is_default)?.code ?? (seriesList[0]?.code || 'SF');
 	});
 
 	$effect(() => {
 		const y = issueDate.slice(0, 4);
-		api<{ full_number: string }>(`/invoices/next-number?year=${y}`)
+		api<{ full_number: string }>(`/invoices/next-number?year=${y}&series=${series}`)
 			.then((r) => (nextNumber = r.full_number))
 			.catch(() => (nextNumber = ''));
 	});
@@ -128,7 +132,7 @@
 			if (issueNow) {
 				await api(`/invoices/${inv.id}/issue`, {
 					method: 'POST',
-					body: { issue_date: issueDate, due_date: dueDate || null }
+					body: { issue_date: issueDate, due_date: dueDate || null, series }
 				});
 			}
 			goto(resolve('/invoices/[id]', { id: String(inv.id) }));
@@ -178,7 +182,20 @@
 						</Button>
 					</div>
 				</div>
-				<div class="grid grid-cols-2 gap-2">
+				<div class="grid grid-cols-3 gap-2">
+					<div class="space-y-1.5">
+						<Label>Serija</Label>
+						<Select.Root type="single" bind:value={series} disabled={!issueNow}>
+							<Select.Trigger class="w-full">{series || 'SF'}</Select.Trigger>
+							<Select.Content>
+								{#each seriesList as s (s.id)}
+									<Select.Item value={s.code} label={s.code}>
+										{s.code}{s.is_default ? ' (numatytoji)' : ''}
+									</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</div>
 					<div class="space-y-1.5">
 						<Label>Sąskaitos data</Label>
 						<Input type="date" bind:value={issueDate} disabled={!issueNow} />

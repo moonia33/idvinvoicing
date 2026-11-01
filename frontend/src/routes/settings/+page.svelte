@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
-	import type { Profile, SmtpSettings } from '#lib/types';
+	import type { InvoiceSeries, Profile, SmtpSettings } from '#lib/types';
+	import { Star, Trash2 } from '@lucide/svelte';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
 	import { Label } from '#lib/components/ui/label';
@@ -42,6 +43,39 @@
 	let profileMsg = $state('');
 	let smtpMsg = $state('');
 	let logoMsg = $state('');
+	let seriesList = $state<InvoiceSeries[]>([]);
+	let newSeries = $state('');
+	let seriesMsg = $state('');
+
+	async function addSeries(e: SubmitEvent) {
+		e.preventDefault();
+		seriesMsg = '';
+		try {
+			const s = await api<InvoiceSeries>('/invoice-series', {
+				method: 'POST',
+				body: { code: newSeries }
+			});
+			seriesList = [...seriesList, s];
+			newSeries = '';
+		} catch (err) {
+			seriesMsg = err instanceof Error ? err.message : 'Klaida';
+		}
+	}
+
+	async function setDefaultSeries(s: InvoiceSeries) {
+		await api(`/invoice-series/${s.id}/set-default`, { method: 'POST' });
+		seriesList = seriesList.map((x) => ({ ...x, is_default: x.id === s.id }));
+	}
+
+	async function removeSeries(s: InvoiceSeries) {
+		if (!confirm(`Ištrinti seriją ${s.code}? Išrašytos sąskaitos nepakies.`)) return;
+		try {
+			await api(`/invoice-series/${s.id}`, { method: 'DELETE' });
+			seriesList = seriesList.filter((x) => x.id !== s.id);
+		} catch (err) {
+			seriesMsg = err instanceof Error ? err.message : 'Klaida';
+		}
+	}
 
 	async function uploadLogo(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -71,6 +105,11 @@
 			profile = await api<Profile>('/profile');
 		} catch {
 			// profilio dar nėra – paliekam tuščią formą
+		}
+		try {
+			seriesList = await api<InvoiceSeries[]>('/invoice-series');
+		} catch {
+			seriesList = [];
 		}
 		const s = await api<SmtpSettings>('/mail/smtp');
 		smtp = {
@@ -192,10 +231,7 @@
 					</div>
 				</div>
 				<Separator />
-				<div class="grid grid-cols-3 gap-3">
-					<div class="space-y-1.5">
-						<Label>Sąskaitų serija</Label><Input bind:value={profile.invoice_series} />
-					</div>
+				<div class="grid grid-cols-2 gap-3">
 					<div class="space-y-1.5">
 						<Label>Apskaita</Label>
 						<Select.Root type="single" bind:value={profile.accounting_basis}>
@@ -251,6 +287,52 @@
 
 	<Card.Root>
 		<Card.Header
+			><Card.Title>Sąskaitų serijos</Card.Title><Card.Description
+				>Viena numatytoji + papildomos serijos (pvz. „SFK" – atgalinėms datoms ar korekcijoms;
+				kiekviena turi atskirą numeraciją)</Card.Description
+			></Card.Header
+		>
+		<Card.Content class="space-y-3">
+			{#each seriesList as s (s.id)}
+				<div class="flex items-center justify-between border-b pb-2 text-sm last:border-0">
+					<span class="font-medium">
+						{s.code}
+						{#if s.is_default}
+							<span class="ml-1 text-xs text-muted-foreground">(numatytoji)</span>
+						{/if}
+					</span>
+					<span class="flex items-center gap-1">
+						{#if !s.is_default}
+							<Button
+								variant="ghost"
+								size="sm"
+								class="h-7 px-2 text-xs"
+								onclick={() => setDefaultSeries(s)}
+								><Star class="size-3.5" /> Padaryti numatytąja</Button
+							>
+							<Button
+								variant="ghost"
+								size="icon"
+								class="h-7 w-7 text-destructive"
+								onclick={() => removeSeries(s)}><Trash2 class="size-3.5" /></Button
+							>
+						{/if}
+					</span>
+				</div>
+			{/each}
+			<form onsubmit={addSeries} class="flex items-end gap-2 pt-1">
+				<div class="w-40 space-y-1.5">
+					<Label>Nauja serija</Label>
+					<Input bind:value={newSeries} placeholder="Pvz. SFK" maxlength={10} required />
+				</div>
+				<Button type="submit" variant="outline">Pridėti</Button>
+			</form>
+			{#if seriesMsg}<p class="text-sm text-destructive">{seriesMsg}</p>{/if}
+		</Card.Content>
+	</Card.Root>
+
+	<Card.Root>
+		<Card.Header
 			><Card.Title>SMTP (el. pašto siuntimas)</Card.Title><Card.Description
 				>Naudojama sąskaitų siuntimui</Card.Description
 			></Card.Header
@@ -301,8 +383,7 @@
 
 	<Card.Root>
 		<Card.Header
-			><Card.Title>Paskyra</Card.Title><Card.Description
-				>Prisijungimo duomenys</Card.Description
+			><Card.Title>Paskyra</Card.Title><Card.Description>Prisijungimo duomenys</Card.Description
 			></Card.Header
 		>
 		<Card.Content class="space-y-3">
@@ -323,7 +404,12 @@
 			<form onsubmit={savePassword} class="space-y-3">
 				<div class="space-y-1.5">
 					<Label>Dabartinis slaptažodis</Label>
-					<Input type="password" bind:value={pw.old_password} required autocomplete="current-password" />
+					<Input
+						type="password"
+						bind:value={pw.old_password}
+						required
+						autocomplete="current-password"
+					/>
 				</div>
 				<div class="grid grid-cols-2 gap-3">
 					<div class="space-y-1.5">
@@ -338,12 +424,7 @@
 					</div>
 					<div class="space-y-1.5">
 						<Label>Pakartoti naują</Label>
-						<Input
-							type="password"
-							bind:value={pw.repeat}
-							required
-							autocomplete="new-password"
-						/>
+						<Input type="password" bind:value={pw.repeat} required autocomplete="new-password" />
 					</div>
 				</div>
 				{#if pwMsg}

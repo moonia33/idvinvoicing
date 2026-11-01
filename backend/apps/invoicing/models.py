@@ -51,6 +51,31 @@ class Service(models.Model):
         return f"{self.code + ' ' if self.code else ''}{self.name}"
 
 
+class InvoiceSeries(models.Model):
+    """Sąskaitų serijos per veiklą: viena numatytoji + papildomos.
+
+    Papildoma serija (pvz. „SFK") leidžia teisėtai išrašyti sąskaitą
+    atgaline data – kiekviena serija turi atskirą numeracijos seką.
+    """
+
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name="invoice_series_set"
+    )
+    code = models.CharField(max_length=10)
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "code"], name="unique_invoice_series_code"
+            )
+        ]
+
+    def __str__(self):
+        return self.code
+
+
 class Invoice(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Juodraštis"

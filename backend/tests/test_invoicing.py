@@ -140,7 +140,8 @@ def test_backdated_issue_blocked(api_client):
         {"issue_date": "2026-01-15", "allow_backdated": True},
     )
     assert r.status_code == 400
-    # sprendimas: ankstesnė data su KITA serija – leidžiama (atskira seka)
+    # sprendimas: ankstesnė data su KITA serija – sukuriama nustatymuose
+    assert post_json(api_client, "/api/v1/invoice-series", {"code": "SFK"}).status_code == 201
     r = post_json(
         api_client,
         f"/api/v1/invoices/{inv2['id']}/issue",
@@ -172,6 +173,32 @@ def test_backdated_edit_blocked(api_client):
     )
     assert r.status_code == 400
     assert "chronologija" in r.json()["detail"]
+
+
+def test_invoice_series_crud(api_client):
+    r = api_client.get("/api/v1/invoice-series")
+    assert r.status_code == 200
+    assert len(r.json()) == 1  # auto-sukuriama numatytoji
+    assert r.json()[0]["is_default"]
+
+    r = post_json(api_client, "/api/v1/invoice-series", {"code": "sfk"})
+    assert r.status_code == 201
+    sid = r.json()["id"]
+    assert r.json()["code"] == "SFK"
+
+    # nežinoma serija – 400
+    cid = make_client(api_client)
+    inv = make_invoice(api_client, cid)
+    r = post_json(api_client, f"/api/v1/invoices/{inv['id']}/issue", {"series": "ZZ"})
+    assert r.status_code == 400
+
+    # set-default
+    assert api_client.post(f"/api/v1/invoice-series/{sid}/set-default").status_code == 200
+    r = api_client.get("/api/v1/invoice-series").json()
+    assert next(s for s in r if s["id"] == sid)["is_default"]
+
+    # numatytosios trinti negalima
+    assert api_client.delete(f"/api/v1/invoice-series/{sid}").status_code == 400
 
 
 def test_no_tenant_403(client, user):

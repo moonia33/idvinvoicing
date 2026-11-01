@@ -10,6 +10,7 @@ from apps.core.models import DocumentSequence
 from apps.invoicing.models import (
     Counterparty,
     Invoice,
+    InvoiceSeries,
     Payment,
     RecurringTemplate,
     Service,
@@ -19,6 +20,8 @@ from apps.invoicing.schemas import (
     ContactOut,
     InvoiceIn,
     InvoiceOut,
+    InvoiceSeriesIn,
+    InvoiceSeriesOut,
     IssueIn,
     PaymentIn,
     PaymentOut,
@@ -156,12 +159,76 @@ def delete_service(request, service_id: int):
 # --- Invoices ---
 
 
+# --- Invoice series ---
+
+
+def _default_series_code(tenant: Tenant) -> str:
+    default = tenant.invoice_series_set.filter(is_default=True).first()
+    if default:
+        return default.code
+    profile = getattr(tenant, "profile", None)
+    return (profile.invoice_series if profile else None) or "SF"
+
+
+def _check_series(tenant: Tenant, code: str) -> None:
+    if not tenant.invoice_series_set.filter(code=code).exists():
+        raise HttpError(400, f'Nežinoma serija „{code}" – sukurkite ją nustatymuose')
+
+
+@router.get("/invoice-series", response=list[InvoiceSeriesOut])
+def list_invoice_series(request):
+    tenant = current_tenant(request)
+    if not tenant.invoice_series_set.exists():
+        tenant.invoice_series_set.create(code=_default_series_code(tenant), is_default=True)
+    return tenant.invoice_series_set.all()
+
+
+@router.post("/invoice-series", response={201: InvoiceSeriesOut})
+def create_invoice_series(request, data: InvoiceSeriesIn):
+    tenant = current_tenant(request)
+    code = data.code.strip().upper()
+    if not code or len(code) > 10 or not code.replace("-", "").isalnum():
+        raise HttpError(400, "Serijos kodas – raidės/skaičiai, iki 10 simbolių")
+    if tenant.invoice_series_set.filter(code=code).exists():
+        raise HttpError(400, "Tokia serija jau egzistuoja")
+    s = tenant.invoice_series_set.create(
+        code=code, is_default=not tenant.invoice_series_set.exists()
+    )
+    return Status(201, s)
+
+
+@router.post("/invoice-series/{series_id}/set-default", response=InvoiceSeriesOut)
+def set_default_invoice_series(request, series_id: int):
+    tenant = current_tenant(request)
+    s = get_object_or_404(InvoiceSeries, id=series_id, tenant=tenant)
+    tenant.invoice_series_set.update(is_default=False)
+    s.is_default = True
+    s.save(update_fields=["is_default"])
+    profile = getattr(tenant, "profile", None)
+    if profile:
+        profile.invoice_series = s.code
+        profile.save(update_fields=["invoice_series"])
+    return s
+
+
+@router.delete("/invoice-series/{series_id}", response={204: None})
+def delete_invoice_series(request, series_id: int):
+    tenant = current_tenant(request)
+    s = get_object_or_404(InvoiceSeries, id=series_id, tenant=tenant)
+    if s.is_default:
+        raise HttpError(400, "Numatytosios serijos ištrinti negalima")
+    s.delete()
+    return Status(204, None)
+
+
+# --- Invoices ---
+
+
 @router.get("/invoices/next-number", response=dict)
-def next_number_preview(request, year: int | None = None):
+def next_number_preview(request, year: int | None = None, series: str | None = None):
     """Numatomas kitas sąskaitos numeris (peržiūrai – nesunaudoja sekos)."""
     tenant = current_tenant(request)
-    profile = getattr(tenant, "profile", None)
-    series = profile.invoice_series if profile else "SF"
+    series = series or _default_series_code(tenant)
     year = year or date.today().year
     seq = DocumentSequence.objects.filter(
         tenant=tenant, kind="invoice", series=series, year=year
@@ -194,7 +261,7 @@ def create_invoice(request, data: InvoiceIn):
         invoice = Invoice.objects.create(
             tenant=tenant,
             client=client,
-            series=getattr(getattr(tenant, "profile", None), "invoice_series", None) or "SF",
+            series=_default_series_code(tenant),
             due_date=data.due_date,
             notes=data.notes,
         )
@@ -268,6 +335,8 @@ def update_invoice(request, invoice_id: int, data: InvoiceIn):
         raise HttpError(400, "Anuliuotos sąskaitos redaguoti negalima")
     if not data.lines:
         raise HttpError(400, "Sąskaita turi turėti bent vieną eilutę")
+    if data.series is not None:
+        _check_series(tenant, data.series)
     if invoice.status != Invoice.Status.DRAFT:
         eff_series = data.series if data.series is not None else invoice.series
         eff_date = data.issue_date or invoice.issue_date or date.today()
@@ -278,13 +347,13 @@ def update_invoice(request, invoice_id: int, data: InvoiceIn):
         invoice.client = get_client(tenant, data.client_id)
         invoice.due_date = data.due_date
         invoice.notes = data.notes
+        if data.series is not None:
+            invoice.series = data.series  # serija – ir juodraščiui
         if invoice.status != Invoice.Status.DRAFT:
             # korekcijos išrašytai sąskaitai: data ir numeracija
             if data.issue_date is not None:
                 invoice.issue_date = data.issue_date
                 invoice.year = data.issue_date.year
-            if data.series is not None:
-                invoice.series = data.series
             if data.year is not None:
                 invoice.year = data.year
             if data.number is not None:
@@ -308,6 +377,7 @@ def issue_invoice_view(request, invoice_id: int, data: IssueIn):
     if invoice.status != Invoice.Status.DRAFT:
         raise HttpError(400, "Išrašyti galima tik juodraštį")
     if data.series:
+        _check_series(tenant, data.series)
         invoice.series = data.series
     issue_date = data.issue_date or date.today()
     _guard_chronology(

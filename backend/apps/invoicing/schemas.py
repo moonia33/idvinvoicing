@@ -78,6 +78,16 @@ class IssueIn(Schema):
     series: str | None = None
 
 
+class InvoiceSeriesIn(Schema):
+    code: str
+
+
+class InvoiceSeriesOut(Schema):
+    id: int
+    code: str
+    is_default: bool
+
+
 class InvoiceOut(Schema):
     id: int
     client: ContactOut

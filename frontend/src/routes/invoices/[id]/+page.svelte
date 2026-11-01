@@ -24,7 +24,7 @@
 		Trash2,
 		Plus
 	} from '@lucide/svelte';
-	import type { InvoiceLine } from '#lib/types';
+	import type { InvoiceLine, InvoiceSeries } from '#lib/types';
 
 	let invoice = $state<Invoice | null>(null);
 	let error = $state('');
@@ -115,8 +115,13 @@
 
 	const id = $derived(page.params.id);
 
+	let seriesList = $state<InvoiceSeries[]>([]);
+
 	async function load() {
-		invoice = await api<Invoice>(`/invoices/${id}`);
+		[invoice, seriesList] = await Promise.all([
+			api<Invoice>(`/invoices/${id}`),
+			api<InvoiceSeries[]>('/invoice-series')
+		]);
 	}
 
 	onMount(load);
@@ -346,7 +351,17 @@
 		<form onsubmit={saveEdit} class="space-y-3">
 			<div class="grid grid-cols-4 gap-3">
 				<div class="space-y-1.5">
-					<Label>Serija</Label><Input bind:value={editForm.series} />
+					<Label>Serija</Label>
+					<Select.Root type="single" bind:value={editForm.series}>
+						<Select.Trigger class="w-full">{editForm.series || '–'}</Select.Trigger>
+						<Select.Content>
+							{#each seriesList as s (s.id)}
+								<Select.Item value={s.code} label={s.code}>
+									{s.code}{s.is_default ? ' (numatytoji)' : ''}
+								</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
 				</div>
 				<div class="space-y-1.5">
 					<Label>Numeris</Label><Input type="number" bind:value={editForm.number} />
