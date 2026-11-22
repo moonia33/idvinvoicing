@@ -43,7 +43,9 @@
 		<Card.Content class="text-2xl font-semibold">{fmtEur(taxes?.total ?? 0)}</Card.Content>
 	</Card.Root>
 	<Card.Root>
-		<Card.Header class="pb-2"><Card.Description>Šio mėn. pajamos − išlaidos</Card.Description></Card.Header>
+		<Card.Header class="pb-2"
+			><Card.Description>Šio mėn. pajamos − išlaidos</Card.Description></Card.Header
+		>
 		<Card.Content class="text-2xl font-semibold">{fmtEur(journal?.net ?? 0)}</Card.Content>
 	</Card.Root>
 </div>
