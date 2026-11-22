@@ -82,3 +82,37 @@ def test_process_outbox_no_smtp(tenant):
     msg = EmailOutbox.objects.get()
     assert msg.status == "failed"
     assert "SMTP" in msg.error
+
+
+def test_process_outbox_falls_back_to_system_smtp(tenant, settings, monkeypatch):
+    from django.core import mail
+
+    settings.EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+    settings.EMAIL_HOST = "smtp.system.lt"
+    settings.DEFAULT_FROM_EMAIL = "apskaita@system.lt"
+    tenant.profile.email = "seller@x.lt"
+    tenant.profile.save()
+    EmailOutbox.objects.create(tenant=tenant, to_email="a@b.lt", subject="Test")
+
+    assert process_outbox() == {"sent": 1, "failed": 0}
+    sent = mail.outbox[0]
+    assert sent.from_email.endswith("<apskaita@system.lt>")
+    assert tenant.profile.seller_name in sent.from_email
+    assert sent.reply_to == ["seller@x.lt"]
+
+
+def test_process_outbox_tenant_smtp_has_priority(api_client, tenant, settings, monkeypatch):
+    monkeypatch.setattr("apps.mailer.tasks.get_connection", locmem_connection)
+    settings.EMAIL_HOST = "smtp.system.lt"
+    api_client.put(
+        "/api/v1/mail/smtp",
+        {"host": "smtp.x.lt", "username": "u", "from_email": "u@x.lt", "from_name": "Jonas"},
+        content_type="application/json",
+    )
+    EmailOutbox.objects.create(tenant=tenant, to_email="a@b.lt", subject="Test")
+
+    process_outbox()
+    from django.core import mail
+
+    assert mail.outbox[0].from_email == "Jonas <u@x.lt>"
+    assert mail.outbox[0].reply_to == []

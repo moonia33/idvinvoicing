@@ -1,5 +1,7 @@
 import logging
+from email.utils import formataddr
 
+from django.conf import settings
 from django.core.mail import EmailMessage, get_connection
 from django.utils import timezone
 from django_q.tasks import async_task
@@ -14,32 +16,44 @@ def queue_email(outbox: EmailOutbox) -> None:
 
 
 def process_outbox() -> dict:
-    """Išsiunčia laukiančius laiškus per-tenant SMTP; kviečiama iš qcluster."""
+    """Išsiunčia laukiančius laiškus per-tenant SMTP arba sistemos SMTP; kviečiama iš qcluster."""
     sent = failed = 0
     pending = EmailOutbox.objects.filter(status=EmailOutbox.Status.PENDING).select_related("tenant")
     for msg in pending:
-        smtp = getattr(msg.tenant, "smtp_settings", None)
-        if not smtp or not smtp.host:
+        tenant_smtp = getattr(msg.tenant, "smtp_settings", None)
+        smtp = tenant_smtp if tenant_smtp and tenant_smtp.host else None
+        if smtp is None and not settings.EMAIL_HOST:
             msg.status = EmailOutbox.Status.FAILED
             msg.error = "SMTP nustatymai nesukonfigūruoti"
             msg.save(update_fields=["status", "error"])
             failed += 1
             continue
         try:
-            conn = get_connection(
-                host=smtp.host,
-                port=smtp.port,
-                username=smtp.username or None,
-                password=smtp.password or None,
-                use_tls=smtp.use_tls,
-                use_ssl=smtp.use_ssl,
-                timeout=30,
-            )
+            if smtp is not None:
+                conn = get_connection(
+                    host=smtp.host,
+                    port=smtp.port,
+                    username=smtp.username or None,
+                    password=smtp.password or None,
+                    use_tls=smtp.use_tls,
+                    use_ssl=smtp.use_ssl,
+                    timeout=30,
+                )
+                from_email = smtp.from_email or smtp.username
+                from_name = smtp.from_name
+                reply_to: list[str] = []
+            else:
+                conn = get_connection()
+                from_email = settings.DEFAULT_FROM_EMAIL
+                profile = getattr(msg.tenant, "profile", None)
+                from_name = profile.seller_name if profile else ""
+                reply_to = [profile.email] if profile and profile.email else []
             email = EmailMessage(
                 subject=msg.subject,
                 body=msg.body,
-                from_email=smtp.from_email or smtp.username,
+                from_email=formataddr((from_name, from_email)) if from_name else from_email,
                 to=[msg.to_email],
+                reply_to=reply_to,
                 connection=conn,
             )
             if msg.attachment:
