@@ -1,5 +1,5 @@
 import logging
-from email.utils import formataddr
+from email.headerregistry import Address
 
 from django.conf import settings
 from django.core.mail import EmailMessage, get_connection
@@ -9,6 +9,13 @@ from django_q.tasks import async_task
 from apps.mailer.models import EmailOutbox
 
 logger = logging.getLogger(__name__)
+
+
+def _sender(name: str, address: str) -> str:
+    if not name or "<" in address:
+        return address
+    local, _, domain = address.rpartition("@")
+    return str(Address(display_name=name, username=local, domain=domain))
 
 
 def queue_email(outbox: EmailOutbox) -> None:
@@ -33,8 +40,8 @@ def process_outbox() -> dict:
                 conn = get_connection(
                     host=smtp.host,
                     port=smtp.port,
-                    username=smtp.username or None,
-                    password=smtp.password or None,
+                    username=smtp.username or "",
+                    password=smtp.password or "",
                     use_tls=smtp.use_tls,
                     use_ssl=smtp.use_ssl,
                     timeout=30,
@@ -51,7 +58,7 @@ def process_outbox() -> dict:
             email = EmailMessage(
                 subject=msg.subject,
                 body=msg.body,
-                from_email=formataddr((from_name, from_email)) if from_name else from_email,
+                from_email=_sender(from_name, from_email),
                 to=[msg.to_email],
                 reply_to=reply_to,
                 connection=conn,
