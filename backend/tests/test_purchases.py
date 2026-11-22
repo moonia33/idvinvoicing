@@ -168,9 +168,7 @@ def test_journal_accrual_basis(api_client, tenant, purchase):
 
 
 def test_kio_pdf(api_client, purchase, monkeypatch):
-    monkeypatch.setattr(
-        "apps.purchases.api.generate_kio_pdf", lambda p: b"%PDF-kio"
-    )
+    monkeypatch.setattr("apps.purchases.api.generate_kio_pdf", lambda p: b"%PDF-kio")
     r = post_json(
         api_client,
         f"/api/v1/purchases/{purchase['id']}/payments",

@@ -264,9 +264,7 @@ def compute_taxes(
     # faktinių išlaidų metu atimamos ir realios išlaidos (be mokesčių įmokų,
     # kurios jau įeina į „mokesčiai" dalį)
     real_expenses = (
-        expenses - paid_total
-        if method == SellerProfile.DeductionsMethod.ACTUAL
-        else Decimal("0")
+        expenses - paid_total if method == SellerProfile.DeductionsMethod.ACTUAL else Decimal("0")
     )
     net_earning = _q(income - real_expenses - taxes_total)
 

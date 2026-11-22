@@ -92,9 +92,7 @@ def test_change_password(api_client, user):
 
 
 def test_profile_logo_upload_and_delete(api_client, tenant):
-    resp = api_client.post(
-        "/api/v1/profile/logo", {"file": io.BytesIO(_png())}, format="multipart"
-    )
+    resp = api_client.post("/api/v1/profile/logo", {"file": io.BytesIO(_png())}, format="multipart")
     assert resp.status_code == 200
     logo = resp.json()["logo"]
     assert logo.startswith("data:image/png;base64,")

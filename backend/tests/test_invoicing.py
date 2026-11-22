@@ -128,9 +128,7 @@ def test_backdated_issue_blocked(api_client):
         == 200
     )
     inv2 = make_invoice(api_client, cid)
-    r = post_json(
-        api_client, f"/api/v1/invoices/{inv2['id']}/issue", {"issue_date": "2026-01-15"}
-    )
+    r = post_json(api_client, f"/api/v1/invoices/{inv2['id']}/issue", {"issue_date": "2026-01-15"})
     assert r.status_code == 400
     assert "chronologija" in r.json()["detail"]
     # apėjimo nėra – ir su allow_backdated vėliavele
@@ -155,13 +153,9 @@ def test_backdated_issue_blocked(api_client):
 def test_backdated_edit_blocked(api_client):
     cid = make_client(api_client)
     inv1 = make_invoice(api_client, cid)
-    post_json(
-        api_client, f"/api/v1/invoices/{inv1['id']}/issue", {"issue_date": "2026-02-01"}
-    )
+    post_json(api_client, f"/api/v1/invoices/{inv1['id']}/issue", {"issue_date": "2026-02-01"})
     inv2 = make_invoice(api_client, cid)
-    post_json(
-        api_client, f"/api/v1/invoices/{inv2['id']}/issue", {"issue_date": "2026-02-10"}
-    )
+    post_json(api_client, f"/api/v1/invoices/{inv2['id']}/issue", {"issue_date": "2026-02-10"})
     r = api_client.put(
         f"/api/v1/invoices/{inv2['id']}",
         {
