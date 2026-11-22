@@ -76,12 +76,11 @@ services:
     mem_limit: 192m
 
   caddy:
-    image: caddy:2-alpine
+    # Caddyfile įkeliamas į image: Coolify hoste repo failų bind mount'ams nelaiko.
+    build: ./deploy/caddy
     restart: unless-stopped
     expose:
       - "80"
-    volumes:
-      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - backend
       - frontend
