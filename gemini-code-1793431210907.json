@@ -1,0 +1,150 @@
+{
+  "document_metadata": {
+    "title": "Individuali veikla pagal pažymą, jos finansinė apskaita ir pajamų deklaravimas",
+    "last_updated": "2026-02-04",
+    "sources": ["Valstybinė mokesčių inspekcija (VMI)", "Valstybinio socialinio draudimo fondo valdyba (Sodra)"],
+    "jurisdiction": "LT"
+  },
+  "abbreviations": {
+    "IV": "Individuali veikla",
+    "GPM": "Gyventojų pajamų mokestis",
+    "GPMĮ": "Gyventojų pajamų mokesčio įstatymas",
+    "PVM": "Pridėtinės vertės mokestis",
+    "VMI": "Valstybinė mokesčių inspekcija",
+    "IT": "Ilgalaikis turtas",
+    "KA": "Kasos aparatas",
+    "VSD": "Valstybinis socialinis draudimas",
+    "PSD": "Privalomasis sveikatos draudimas",
+    "MMA": "Minimalioji mėnesinė alga",
+    "VDU": "Vidutinis darbo užmokestis",
+    "FR0457": "Fizinio asmens pranešimas apie IT ar jo dalies priskyrimą vykdomai IV",
+    "GPM311": "Nuolatinio Lietuvos gyventojo Metinė pajamų mokesčio deklaracija"
+  },
+  "individual_activity_definition": {
+    "definition": "Savarankiška bet kokio pobūdžio komercinė arba gamybinė veikla (išskyrus nekilnojamųjų pagal prigimtį daiktų pardavimą / nuomą bei finansinių priemonių sandorius), kuria siekiama gauti pajamų per tęstinį laikotarpį (GPMĮ 2 str. 7 d.).",
+    "key_features": [
+      "Savarankiškumas",
+      "Tęstinumas",
+      "Siekiama gauti pajamų ar kitokios ekonominės naudos"
+    ],
+    "general_rules": [
+      "Galima vykdyti bet kokią veiklą, jei teisės aktai nereikalauja įsteigti juridinio asmens.",
+      "Veikla privalo būti registruojama nustatyta tvarka prieš ją pradedant.",
+      "Pasikeitus duomenims, privaloma informuoti VMI."
+    ]
+  },
+  "accounting_principles": {
+    "cash_principle": {
+      "definition": "Pajamos pripažįstamos faktišku jų gavimo momentu.",
+      "applicability": "Standartinis principas IV pagal pažymą (jei netaikomi kaupimo principo reikalavimai)."
+    },
+    "accrual_principle": {
+      "definition": "Pajamos pripažįstamos, kai jos uždirbamos, neatsižvelgiant į apmokėjimo laiką.",
+      "mandatory_conditions": [
+        "Gyventojas yra įregistruotas PVM mokėtoju",
+        "Gyventojas veiklai priskiria ir joje naudoja ilgalaikį turtą (teikdamas FR0457)"
+      ],
+      "voluntarily_choice": "Nuo 2023 m. gyventojai gali pasirinkti taikyti kaupimo principą savo noru. Pasirinkus, jis taikomas iki veiklos pabaigos."
+    }
+  },
+  "taxable_income_calculation": {
+    "formula": "Apmokestinamosios pajamos = Individualios veiklos pajamos - Leidžiami atskaitymai",
+    "deduction_methods": {
+      "actual_expenses": "Dengiamos faktiškai patirtos išlaidos, pagrįstos juridinę galią turinčiais dokumentais.",
+      "flat_rate_30_percent": "Nurašoma 30% gautų/uždirbtų pajamų suma be išlaidas pagrindžiančių dokumentų (netaikoma, jei pajamos gautos iš darbdavio)."
+    }
+  },
+  "allowable_deductions": {
+    "eligible_expenses": [
+      "Perparduodamų prekių, medžiagų, žaliavų, detalių įsigijimas",
+      "Veikloje naudojamo turto nuoma, įsigijimas, eksploatavimas ir remontas (IT turi būti deklaruotas FR0457)",
+      "Samdomų darbuotojų darbo užmokestis",
+      "VSD ir PSD įmokos",
+      "Reprezentacijos, komandiruočių ir kitos ribojamų dydžių išlaidos",
+      "Telefoniniai pokalbiai (fiksavimas laisvos formos dokumentu, nustatant IV tenkančią procentinę dalį; tinka ir nedeklaravus telefono FR0457)",
+      "Interneto bei kompiuterinių programų išlaidos (programoms tinka, jei jos registruotos FR0457, net jei pats kompiuteris neregistruotas)"
+    ],
+    "non_deductible_expenses": [
+      "Gyvenamųjų pastatų ir patalpų įsigijimas",
+      "Lengvųjų automobilių įsigijimas (išskyrus teikiantiems transporto/vairavimo paslaugas ar nuomą)",
+      "Kompiuterių programų susikūrimo išlaidos",
+      "Kompiuterių programų įsigijimas iš asocijuotų asmenų arba tikslinėse teritorijose esančių subjektų",
+      "Į biudžetą mokamas PVM ir GPM",
+      "Pirkimo/importo PVM, įtrauktas į PVM atskaitą",
+      "Baudos, delspinigiai, netesybos ir kitos sankcijos",
+      "Parama, dovanos, žalos atlyginimas",
+      "Išlaidos, susijusios su Baudžiamojo kodekso uždrausta veika (pvz., kyšiai)"
+    ],
+    "asset_depreciation_rules": {
+      "long_term_asset_criteria": "Naudojamas veikoje ilgiau nei 1 metus, įsigijimo kaina viršija gyventojo nustatytą ribą, pateikta FR0457 forma.",
+      "depreciation_start": "Skaičiuojama nuo kito mėnesio, kai turtas pradėtas naudoti IV.",
+      "depreciation_rates_years": {
+        "residential_buildings": 20,
+        "other_buildings": 15,
+        "machinery_and_equipment": 5,
+        "furniture": 6,
+        "computers_and_telecom": 3,
+        "cars_for_services_rental_under_5_yo": 4,
+        "other_cars_under_5_yo": 6,
+        "other_cars_over_5_yo": 10,
+        "trucks_buses": 4,
+        "software_and_acquired_rights": 3
+      }
+    }
+  },
+  "financial_accounting_and_documentation": {
+    "required_registers": [
+      "Gyventojo individualios veiklos pajamų ir išlaidų apskaitos žurnalas (pildomas ne vėliau kaip iki kito mėnesio paskutinės dienos).",
+      "Autonominio kasos aparato kasos operacijų ir išlaidų apskaitos žurnalas (jei naudojamas KA)."
+    ],
+    "issued_documents": [
+      "Sąskaita faktūra",
+      "PVM sąskaita faktūra (PVM mokėtojams)",
+      "Kasos aparato kvitas",
+      "Pinigų priėmimo kvitas (kai atsiskaitoma grynaisiais vėliau arba gavus avansą, nesutampant paslaugos/prekės suteikimo ir atsiskaitymo laikui)"
+    ],
+    "document_retention_period_years": 10,
+    "virtual_accounting": "Galima naudoti nemokamą VMI sistemą i.APS (privaloma prekybai mėsa/paukštiena turgavietėse ir viešose vietose)."
+  },
+  "taxation_gpm_from_2026": {
+    "general_rate": "20% (GPMĮ 6 str. 8 d.)",
+    "progressive_rates_if_income_exceeds_42500_eur": ["20%", "25%", "32%"],
+    "tax_credit_rules": {
+      "income_up_to_20000_eur": "Faktinis GPM tarifas yra 5%",
+      "income_20000_to_42500_eur": "Faktinis GPM tarifas tolygiai didėja nuo 5% iki 20%",
+      "income_exceeding_42500_eur": "Pajamų mokesčio kreditas netaikomas; visai sumai taikomi pagrindiniai GPM tarifai (20%, 25% arba 32%)."
+    },
+    "tax_declaration_and_payment_deadline": "Iki kitų metų gegužės 1 d. (naudojant GPM311 formą / vedlio dalį GPM311C, įmokos kodas 1441)."
+  },
+  "social_security_sodra_2026": {
+    "psd": {
+      "rate": "6.98%",
+      "base": "90% apmokestinamųjų pajamų (arba 6.98% nuo MMA kas mėnesį, jei nedirbama pagal darbo sutartį ir nedraudžiama valstybės lėšomis)",
+      "purpose": "Neatlygintinos sveikatos priežiūros paslaugos ir vaistai."
+    },
+    "vsd": {
+      "rate": "12.52% (arba 15.52% su papildomu 3% pensijų kaupimu)",
+      "base": "90% apmokestinamųjų pajamų",
+      "max_annual_base": "43 VDU (2025 m. deklaracijai max ribojama iki 90 681,84 EUR)",
+      "benefits_covered": [
+        "Ligos išmoka",
+        "Motinystės, tėvystės ir vaiko priežiūros išmokos",
+        "Socialinio draudimo pensija (senatvės, negalios)"
+      ]
+    },
+    "vsd_psd_exemptions": [
+      "Gaunantys senatvės ar negalios pensiją (LT, ES/EEE ar šalių su sutartimi)",
+      "Gaunantys šalpos pensiją / kompensaciją",
+      "Esantys laisvės atėmimo įstaigose ar taikant priverstines medicinos priemones",
+      "Pirmą kartą dirbantys savarankiškai (VSD lengvata galioja 1 metus nuo veiklos pradžios, jei asmuo 10 metų neturėjo IV/verslo liudijimo/IĮ/MB)."
+    ],
+    "social_insurance_duration_and_pension": {
+      "stažo_skaičiavimas": "1 metų VSD stažas įgyjamas sumokėjus VSD įmokas nuo 12 MMA per metus.",
+      "pension_points": "1 apskaitos vienetas (taškas) įgyjamas sumokėjus VSD nuo 12 VDU per metus (maksimumas – 5 taškai/metus).",
+      "pension_indicators_2026": {
+        "bazinė_pensija": "327.91 EUR",
+        "apskaitos_vieneto_vertė": "8.11 EUR"
+      }
+    }
+  }
+}
