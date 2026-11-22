@@ -148,6 +148,7 @@ def test_tenant_smtp_without_username_does_not_reuse_system_credentials(
         ("Jonas, UAB", "u@x.lt", '"Jonas, UAB" <u@x.lt>'),
         ("Jonas", "App <u@x.lt>", "App <u@x.lt>"),
         ("Jonas", "u@žvejyba.lt", "Jonas <u@žvejyba.lt>"),
+        ("Jonas", '"a b"@x.lt', 'Jonas <"a b"@x.lt>'),
         ("", "u@x.lt", "u@x.lt"),
     ],
 )

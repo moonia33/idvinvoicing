@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 def _sender(name: str, address: str) -> str:
     if not name or "<" in address:
         return address
-    local, _, domain = address.rpartition("@")
-    return str(Address(display_name=name, username=local, domain=domain))
+    return str(Address(display_name=name, addr_spec=address))
 
 
 def queue_email(outbox: EmailOutbox) -> None:
