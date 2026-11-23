@@ -1,0 +1,90 @@
+# Coolify (Traefik) diegimas: viešas tik `caddy` servisas – domenas priskiriamas jam Coolify UI,
+# portai į hostą nepublikuojami. Atminties ribos – kad sistema nekonkuruotų su kitais serverio servisais.
+x-backend-env: &backend-env
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+  DJANGO_DEBUG: "false"
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
+  DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:-idv_apskaita}
+  POSTGRES_USER: ${POSTGRES_USER:-idv}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+  EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+  EMAIL_HOST: ${EMAIL_HOST:-}
+  EMAIL_PORT: ${EMAIL_PORT:-465}
+  EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+  EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+  EMAIL_USE_TLS: ${EMAIL_USE_TLS:-false}
+  EMAIL_USE_SSL: ${EMAIL_USE_SSL:-true}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-idv_apskaita}
+      POSTGRES_USER: ${POSTGRES_USER:-idv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 384m
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers $${GUNICORN_WORKERS:-2} --timeout 60"
+    environment:
+      <<: *backend-env
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 512m
+
+  qcluster:
+    build: ./backend
+    restart: unless-stopped
+    command: >
+      sh -c "until python manage.py migrate --check >/dev/null 2>&1;
+             do echo 'waiting for migrations...'; sleep 3; done;
+             python manage.py qcluster"
+    environment:
+      <<: *backend-env
+    depends_on:
+      backend:
+        condition: service_started
+    mem_limit: 384m
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      ORIGIN: ${ORIGIN:?ORIGIN is required}
+      HOST: 0.0.0.0
+      PORT: "3000"
+    depends_on:
+      - backend
+    mem_limit: 192m
+
+  caddy:
+    # Caddyfile įkeliamas į image: Coolify hoste repo failų bind mount'ams nelaiko.
+    build: ./deploy/caddy
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - backend
+      - frontend
+    mem_limit: 128m
+
+volumes:
+  pgdata:

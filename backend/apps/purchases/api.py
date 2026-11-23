@@ -264,7 +264,5 @@ def kio_pdf(request, payment_id: int):
         raise HttpError(400, "KIO PDF galimas tik KIO mokėjimams")
     pdf = generate_kio_pdf(payment)
     response = HttpResponse(pdf, content_type="application/pdf")
-    response["Content-Disposition"] = (
-        f'inline; filename="{payment.doc_number or "kio"}.pdf"'
-    )
+    response["Content-Disposition"] = f'inline; filename="{payment.doc_number or "kio"}.pdf"'
     return response

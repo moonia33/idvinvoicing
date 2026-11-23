@@ -3,7 +3,7 @@ import { fmtEur, fmtDate, STATUS_LABELS } from './format';
 
 describe('fmtEur', () => {
 	it('formatuoja decimal string kaip EUR', () => {
-		expect(fmtEur('1234.50')).toContain('1234');
+		expect(fmtEur('1234.50').replace(/\s/g, '')).toBe('1234,50€');
 		expect(fmtEur('0')).toBeTruthy();
 	});
 });

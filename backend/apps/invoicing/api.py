@@ -380,9 +380,7 @@ def issue_invoice_view(request, invoice_id: int, data: IssueIn):
         _check_series(tenant, data.series)
         invoice.series = data.series
     issue_date = data.issue_date or date.today()
-    _guard_chronology(
-        tenant, invoice.series, issue_date.year, issue_date, None, invoice.id
-    )
+    _guard_chronology(tenant, invoice.series, issue_date.year, issue_date, None, invoice.id)
     try:
         issue_invoice(invoice, issue_date, data.due_date)
     except ValueError as e:

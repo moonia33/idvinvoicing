@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
     command: >
       sh -c "python manage.py migrate --noinput &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers $${GUNICORN_WORKERS:-3}"
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_DEBUG: "false"
@@ -30,6 +30,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-idv}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
     depends_on:
       db:
         condition: service_healthy

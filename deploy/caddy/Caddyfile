@@ -1,3 +1,11 @@
+{
+	# Už Coolify/Traefik: perduoti X-Forwarded-Proto/For iš vidinio tinklo proxy,
+	# kitaip Django mato http ir CSRF/secure cookie neveikia.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
 :80 {
 	encode gzip
 

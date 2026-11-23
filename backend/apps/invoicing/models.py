@@ -58,18 +58,14 @@ class InvoiceSeries(models.Model):
     atgaline data – kiekviena serija turi atskirą numeracijos seką.
     """
 
-    tenant = models.ForeignKey(
-        Tenant, on_delete=models.CASCADE, related_name="invoice_series_set"
-    )
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="invoice_series_set")
     code = models.CharField(max_length=10)
     is_default = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["code"]
         constraints = [
-            models.UniqueConstraint(
-                fields=["tenant", "code"], name="unique_invoice_series_code"
-            )
+            models.UniqueConstraint(fields=["tenant", "code"], name="unique_invoice_series_code")
         ]
 
     def __str__(self):
@@ -85,9 +81,7 @@ class Invoice(models.Model):
         CANCELLED = "cancelled", "Atšaukta"
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="invoices")
-    client = models.ForeignKey(
-        Counterparty, on_delete=models.PROTECT, related_name="invoices"
-    )
+    client = models.ForeignKey(Counterparty, on_delete=models.PROTECT, related_name="invoices")
     series = models.CharField(max_length=10, default="SF")
     year = models.PositiveIntegerField(null=True, blank=True)
     number = models.PositiveIntegerField(null=True, blank=True)
