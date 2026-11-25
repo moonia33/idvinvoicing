@@ -195,3 +195,11 @@ def test_ledger_tenant_isolation_and_accountant(api_client, user, tenant, other_
         == 403
     )
     assert api_client.get("/api/v1/transfers/suggestions").status_code == 200
+
+
+def test_number_match_needs_word_boundary():
+    from apps.payments.matching import number_in_text
+
+    assert number_in_text("SF20260001", "apmokejimas sf-2026/0001.")
+    assert not number_in_text("1234", "Saskaita 12345")
+    assert not number_in_text("SF20260001", "SF-2026-00012")

@@ -26,6 +26,15 @@ def _compact(text: str) -> str:
     return re.sub(r"[^0-9A-Z]", "", text.upper())
 
 
+def number_in_text(number: str, text: str) -> bool:
+    """Dokumento numeris tekste kaip atskiras žodis (skyrybos ženklai tarp simbolių leidžiami):
+    „SF-2026-0001“ randamas „sf 2026/0001“, bet „1234“ nerandamas „12345“."""
+    if not number:
+        return False
+    body = r"[^0-9A-Z]*".join(re.escape(ch) for ch in number)
+    return re.search(rf"(?<![0-9A-Z]){body}(?![0-9A-Z])", text.upper()) is not None
+
+
 @dataclass
 class Doc:
     kind: str  # invoice | purchase
@@ -97,8 +106,7 @@ def score(transfer: MoneyTransfer, doc: Doc) -> Suggestion:
     s = Suggestion(doc, 0)
     if doc.currency != transfer.currency:
         return s
-    ref = _compact(f"{transfer.reference} {transfer.doc_number}")
-    if doc.number and doc.number in ref:
+    if number_in_text(doc.number, f"{transfer.reference} {transfer.doc_number}"):
         s.score += 60
         s.number_match = True
         s.reasons.append("numeris paskirtyje")
