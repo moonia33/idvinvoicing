@@ -139,6 +139,13 @@ AXES_RESET_ON_SUCCESS = True
 FIELD_ENCRYPTION_KEY = os.environ.get("DJANGO_FIELD_ENCRYPTION_KEY", "")
 if not DEBUG and not FIELD_ENCRYPTION_KEY:
     raise RuntimeError("DJANGO_FIELD_ENCRYPTION_KEY must be set when DJANGO_DEBUG=false")
+if FIELD_ENCRYPTION_KEY:
+    from cryptography.fernet import Fernet
+
+    try:
+        Fernet(FIELD_ENCRYPTION_KEY.encode())
+    except ValueError:
+        raise RuntimeError("DJANGO_FIELD_ENCRYPTION_KEY must be a valid Fernet key") from None
 
 # Cloudflare Access (Zero Trust) /admin/ apsauga: kai nustatyta, origin tikrina
 # Cf-Access-Jwt-Assertion, kad Access nebūtų galima apeiti tiesiai per IP.
