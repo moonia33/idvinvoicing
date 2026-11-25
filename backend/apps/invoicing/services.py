@@ -7,6 +7,7 @@ from django.template.loader import render_to_string
 from apps.core.ltnum import lt_amount_words
 from apps.core.numbering import next_document_number
 from apps.core.pdf import render_pdf
+from apps.invoicing.epc import format_iban, payment_qr
 from apps.invoicing.models import Invoice, Payment
 
 
@@ -53,12 +54,15 @@ def generate_invoice_pdf(invoice: Invoice, with_cash_docs: bool = False) -> byte
     """Sugeneruoja sąskaitos PDF baitus (WeasyPrint – tik Linux/Docker aplinkoje)."""
 
     tenant = invoice.tenant
+    qr = payment_qr(invoice)
     html = render_to_string(
         "invoicing/invoice_pdf.html",
         {
             "invoice": invoice,
             "profile": getattr(tenant, "profile", None),
             "cash_docs": cash_doc_ctxs(invoice) if with_cash_docs else [],
+            "payment_qr": qr,
+            "payment_iban": format_iban(qr.iban) if qr else "",
         },
     )
     return render_pdf(html)

@@ -17,6 +17,7 @@ dependencies = [
     "django-axes>=8,<9",
     "pyjwt[crypto]>=2.9,<3",
     "defusedxml>=0.7,<1",
+    "segno>=1.6,<2",
 ]
 
 [dependency-groups]

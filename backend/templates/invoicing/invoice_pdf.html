@@ -18,6 +18,10 @@
   table.totals td { padding: 4px 8px; }
   .total-row td { border-top: 2px solid #333; font-weight: bold; font-size: 11pt; }
   .footer { margin-top: 32px; }
+  table.pay { width: 100%; margin-top: 24px; border-top: 1px solid #ddd; }
+  table.pay td { vertical-align: top; padding-top: 12px; }
+  table.pay td.qr { width: 130px; text-align: right; }
+  table.pay img { width: 120px; height: 120px; }
   .cash-doc { page-break-before: always; }
   .cash-doc h1 { font-size: 14pt; }
   table.kv { width: 100%; border-collapse: collapse; margin: 14px 0; }
@@ -93,6 +97,22 @@
 
   {% if invoice.notes %}<p class="muted">{{ invoice.notes }}</p>{% endif %}
 
+  {% if payment_qr %}
+  <table class="pay">
+    <tr>
+      <td>
+        <strong>Mokėjimo rekvizitai</strong><br>
+        Gavėjas: {{ payment_qr.name }}<br>
+        {% if profile.bank_name %}{{ profile.bank_name }}<br>{% endif %}
+        IBAN: {{ payment_iban }}<br>
+        Mokėtina suma: {{ payment_qr.amount }} EUR<br>
+        Mokėjimo paskirtis: {{ payment_qr.reference }}
+        <p class="muted">Nuskenuokite QR kodą banko programėle – rekvizitai bus užpildyti automatiškai.</p>
+      </td>
+      <td class="qr"><img src="{{ payment_qr.svg_data_uri }}" alt="Mokėjimo QR kodas"></td>
+    </tr>
+  </table>
+  {% else %}
   <div class="footer">
     {% if profile and profile.iban %}
       <p><strong>Mokėjimo rekvizitai:</strong><br>
@@ -100,6 +120,7 @@
       IBAN: {{ profile.iban }}</p>
     {% endif %}
   </div>
+  {% endif %}
 
   {% for d in cash_docs %}
     {% include "invoicing/cash_doc_body.html" %}
