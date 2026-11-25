@@ -31,7 +31,8 @@ export const PAYMENT_METHODS: Record<string, string> = {
 
 export const DOC_TYPE_LABELS: Record<string, string> = {
 	kpo: 'Kasos pajamų orderis (KPO)',
-	ppk: 'Pinigų priėmimo kvitas (PPK)'
+	ppk: 'Pinigų priėmimo kvitas (PPK)',
+	receipt: 'Kasos kvitas (čekis)'
 };
 
 export const PURCHASE_STATUS_LABELS: Record<string, string> = {
@@ -43,7 +44,8 @@ export const PURCHASE_STATUS_LABELS: Record<string, string> = {
 
 export const PURCHASE_DOC_TYPES: Record<string, string> = {
 	kio: 'Kasos išlaidų orderis (KIO)',
-	ppk: 'Tiekėjo PPK'
+	ppk: 'Tiekėjo PPK',
+	receipt: 'Kasos kvitas (čekis)'
 };
 
 export const PURCHASE_DOC_KINDS: Record<string, string> = {

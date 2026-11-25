@@ -64,7 +64,7 @@ export interface InvoiceLine {
 }
 
 export type PaymentMethod = 'bank' | 'cash' | 'card' | 'other';
-export type PaymentDocType = '' | 'kpo' | 'ppk';
+export type PaymentDocType = '' | 'kpo' | 'ppk' | 'receipt';
 
 export interface Payment {
 	id?: number;
@@ -114,7 +114,7 @@ export interface Invoice {
 	payments: Payment[];
 }
 
-export type PurchaseDocType = '' | 'kio' | 'ppk';
+export type PurchaseDocType = '' | 'kio' | 'ppk' | 'receipt';
 export type PurchaseStatus = 'received' | 'partially_paid' | 'paid' | 'cancelled';
 
 export interface PurchaseLine {
@@ -291,6 +291,10 @@ export interface Transfer {
 	reference: string;
 	note: string;
 	ignored: boolean;
+	doc_type: string;
+	doc_number: string;
+	account_iban: string;
+	bank_import_id: number | null;
 	source: 'manual' | 'import';
 	status: TransferStatus;
 	allocated_total: string;
@@ -309,4 +313,43 @@ export interface OpenDocument {
 	currency: string;
 	total: string;
 	remaining: string;
+}
+
+export interface ImportStatement {
+	account_iban: string;
+	currency: string;
+	bank_name: string;
+	owner_name: string;
+	period_from: string | null;
+	period_to: string | null;
+	entries: number;
+	skipped: number;
+}
+
+export interface ImportEntry {
+	account_iban: string;
+	external_id: string;
+	direction: TransferDirection;
+	date: string;
+	amount: string;
+	currency: string;
+	method: PaymentMethod;
+	counterparty_name: string;
+	counterparty_iban: string;
+	counterparty_code: string;
+	counterparty_id: number | null;
+	reference: string;
+	bank_code: string;
+	own_transfer: boolean;
+	duplicate: boolean;
+	supported: boolean;
+}
+
+export interface ImportResult {
+	statements: ImportStatement[];
+	entries: ImportEntry[];
+	new_count: number;
+	duplicate_count: number;
+	unsupported_count: number;
+	created_count: number;
 }

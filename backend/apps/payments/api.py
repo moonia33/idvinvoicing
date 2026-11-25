@@ -1,15 +1,19 @@
+import json
 from datetime import date
 
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from ninja import Router, Status
+from ninja import File, Form, Router, Status
 from ninja.errors import HttpError
+from ninja.files import UploadedFile
 
 from apps.invoicing.models import Counterparty, Invoice, Payment
+from apps.payments import camt
 from apps.payments.models import MoneyTransfer
 from apps.payments.schemas import (
     AllocationIn,
+    ImportResultOut,
     OpenDocumentOut,
     TransferIn,
     TransferOut,
@@ -19,7 +23,10 @@ from apps.payments.services import (
     OPEN_INVOICE,
     OPEN_PURCHASE,
     allocate,
+    assign_cash_doc,
     delete_transfer,
+    import_statements,
+    preview_statements,
     resync_allocations,
     unallocate,
 )
@@ -80,6 +87,10 @@ def _out(t: MoneyTransfer) -> dict:
         "reference": t.reference,
         "note": t.note,
         "ignored": t.ignored,
+        "doc_type": t.doc_type,
+        "doc_number": t.doc_number,
+        "account_iban": t.account_iban,
+        "bank_import_id": t.bank_import_id,
         "source": t.source,
         "status": t.status,
         "allocated_total": t.allocated_total,
@@ -107,8 +118,14 @@ def list_transfers(
     date_to: date | None = None,
     counterparty_id: int | None = None,
     q: str | None = None,
+    source: str | None = None,
+    bank_import: int | None = None,
 ):
     qs = _qs(current_tenant(request))
+    if source in MoneyTransfer.Source.values:
+        qs = qs.filter(source=source)
+    if bank_import:
+        qs = qs.filter(bank_import_id=bank_import)
     if direction in MoneyTransfer.Direction.values:
         qs = qs.filter(direction=direction)
     if date_from:
@@ -123,6 +140,7 @@ def list_transfers(
             | Q(counterparty_name__icontains=q)
             | Q(reference__icontains=q)
             | Q(note__icontains=q)
+            | Q(doc_number__icontains=q)
         )
     items = [_out(t) for t in qs]
     if status in MoneyTransfer.Status.values:
@@ -198,6 +216,32 @@ def open_documents(request, direction: str, counterparty_id: int | None = None):
     return docs
 
 
+@router.post("/transfers/import", response=ImportResultOut)
+def import_bank_statement(
+    request,
+    file: UploadedFile = File(...),  # noqa: B008
+    commit: bool = Form(False),  # noqa: B008
+    ignored: str = Form(""),  # noqa: B008
+):
+    """camt.053 XML: be `commit` – tik peržiūra; su `commit` – įrašo naujas operacijas."""
+    tenant = current_tenant(request)
+    if file.size and file.size > camt.MAX_FILE_SIZE:
+        raise HttpError(400, "Failas per didelis (daugiausia 10 MB)")
+    try:
+        statements = camt.parse(file.read(camt.MAX_FILE_SIZE + 1))
+    except camt.CamtError as e:
+        raise HttpError(400, str(e)) from e
+    if not commit:
+        return preview_statements(tenant, statements)
+    try:
+        ignored_ids = {str(i) for i in json.loads(ignored or "[]")}
+    except (ValueError, TypeError) as e:
+        raise HttpError(400, "Netinkamas neapskaitomų operacijų sąrašas") from e
+    return import_statements(
+        tenant, request.user, statements, file_name=file.name or "", ignored_ids=ignored_ids
+    )
+
+
 @router.get("/transfers/{transfer_id}", response=TransferOut)
 def get_transfer(request, transfer_id: int):
     return _out(_get(current_tenant(request), transfer_id))
@@ -208,11 +252,13 @@ def create_transfer(request, data: TransferIn):
     tenant = current_tenant(request)
     if data.ignored and data.allocations:
         raise HttpError(400, "Neapskaitomas mokėjimas negali būti sudengtas")
-    values = data.model_dump(exclude={"allocations", "doc_type", "counterparty_id"})
+    values = data.model_dump(exclude={"allocations", "counterparty_id"})
     with transaction.atomic():
-        transfer = MoneyTransfer.objects.create(
+        transfer = MoneyTransfer(
             tenant=tenant, counterparty=_counterparty(tenant, data.counterparty_id), **values
         )
+        assign_cash_doc(transfer)
+        transfer.save()
         for a in data.allocations:
             allocate(
                 transfer,
@@ -220,7 +266,8 @@ def create_transfer(request, data: TransferIn):
                 invoice_id=a.invoice_id,
                 purchase_id=a.purchase_id,
                 exchange_rate=a.exchange_rate,
-                doc_type=data.doc_type,
+                doc_type=transfer.doc_type,
+                doc_number=transfer.doc_number,
             )
     return Status(201, _out(_get(tenant, transfer.id)))
 
@@ -263,6 +310,8 @@ def add_allocation(request, transfer_id: int, data: AllocationIn):
         invoice_id=data.invoice_id,
         purchase_id=data.purchase_id,
         exchange_rate=data.exchange_rate,
+        doc_type=transfer.doc_type,
+        doc_number=transfer.doc_number,
     )
     return Status(201, _out(_get(tenant, transfer.id)))
 
