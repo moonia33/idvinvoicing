@@ -247,3 +247,29 @@ def test_third_party_iban_not_remembered(api_client, tenant):
     )
     client.refresh_from_db()
     assert client.iban == ""
+
+
+def test_note_edit_keeps_ledger_document_date(api_client, tenant):
+    r = post_json(
+        api_client,
+        "/api/v1/transfers",
+        {"direction": "out", "date": "2026-02-01", "amount": "10.00"},
+    )
+    tid = r.json()["id"]
+    entry_id = post_json(api_client, f"/api/v1/transfers/{tid}/ledger", {"kind": "expense"}).json()[
+        "ledger_entry_id"
+    ]
+    LedgerEntry.objects.filter(id=entry_id).update(document_date=date(2026, 1, 28))
+    api_client.put(
+        f"/api/v1/transfers/{tid}",
+        {"date": "2026-02-01", "amount": "10.00", "note": "pastaba"},
+        content_type="application/json",
+    )
+    assert LedgerEntry.objects.get(id=entry_id).document_date == date(2026, 1, 28)
+    api_client.put(
+        f"/api/v1/transfers/{tid}",
+        {"date": "2026-02-02", "amount": "10.00"},
+        content_type="application/json",
+    )
+    entry = LedgerEntry.objects.get(id=entry_id)
+    assert (entry.document_date, entry.paid_date) == (date(2026, 1, 28), date(2026, 2, 2))
