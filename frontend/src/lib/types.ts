@@ -12,6 +12,16 @@ export interface Me {
 	current_tenant_id: number | null;
 }
 
+export type MemberRole = 'owner' | 'member' | 'accountant';
+
+export interface Member {
+	id: number;
+	user_id: number;
+	email: string;
+	name: string;
+	role: MemberRole;
+}
+
 export interface Profile {
 	seller_name: string;
 	activity_code: string;

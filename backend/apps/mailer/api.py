@@ -4,7 +4,7 @@ from ninja.errors import HttpError
 from apps.mailer.models import EmailOutbox, SmtpSettings
 from apps.mailer.schemas import OutboxOut, SmtpIn, SmtpOut
 from apps.mailer.validators import ensure_public_smtp_host
-from apps.tenancy.api import current_tenant
+from apps.tenancy.api import current_tenant, require_owner
 
 router = Router()
 
@@ -38,7 +38,7 @@ def get_smtp(request):
 
 @router.put("/mail/smtp", response=SmtpOut)
 def upsert_smtp(request, data: SmtpIn):
-    tenant = current_tenant(request)
+    tenant = require_owner(request)
     if data.host:
         try:
             ensure_public_smtp_host(data.host, data.port)

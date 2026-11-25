@@ -12,7 +12,6 @@ from apps.core.pdf import _data_only_fetcher
 from apps.mailer.models import SmtpSettings
 from apps.mailer.validators import ensure_public_smtp_host
 from apps.reports.services import _neutralize_formulas
-from tests.conftest import post_json
 
 pytestmark = pytest.mark.django_db
 
@@ -26,15 +25,15 @@ def _resolve_to(monkeypatch, ip: str):
 # --- prisijungimo ribojimas (django-axes) ---
 
 
-def test_login_locked_after_failures(client, user, settings):
+def test_admin_login_locked_after_failures(client, settings):
+    from apps.tenancy.models import User
+
+    User.objects.create_superuser("admin", "a@x.lt", "Admin-slaptas-2026")
     settings.AXES_FAILURE_LIMIT = 3
     for _ in range(3):
-        post_json(client, "/api/v1/auth/login", {"username": "tomas", "password": "blogai"})
-    resp = post_json(client, "/api/v1/auth/login", {"username": "tomas", "password": "slaptas123"})
+        client.post("/admin/login/", {"username": "admin", "password": "blogai"})
+    resp = client.post("/admin/login/", {"username": "admin", "password": "Admin-slaptas-2026"})
     assert resp.status_code == 429
-
-
-# --- API dokumentacija ---
 
 
 def test_api_docs_flags_follow_debug():
@@ -49,21 +48,6 @@ def test_api_docs_flags_follow_debug():
 
 
 # --- slaptažodžio keitimas ---
-
-
-def test_password_change_requires_12_chars(api_client):
-    resp = post_json(
-        api_client,
-        "/api/v1/auth/password",
-        {"old_password": "slaptas123", "new_password": "Trumpas12!"},
-    )
-    assert resp.status_code == 400
-    resp = post_json(
-        api_client,
-        "/api/v1/auth/password",
-        {"old_password": "slaptas123", "new_password": "ilgas-Slaptazodis-2026"},
-    )
-    assert resp.status_code == 200
 
 
 # --- SMTP SSRF ---

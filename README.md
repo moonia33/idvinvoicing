@@ -41,7 +41,9 @@ docker compose up --build -d
 Viskas pasiekiama per http://localhost (Caddy: `/api`, `/admin`, `/static` → backend; visa kita → frontend).
 
 Migracijos: `docker compose exec backend python manage.py migrate`
-Supervartotojas: `docker compose exec backend python manage.py createsuperuser`
+Supervartotojas: `docker compose exec backend python manage.py createsuperuser` (būtinas el. paštas).
+
+Prisijungimas prie programos – tik vienkartiniu kodu el. paštu (`/api/v1/auth/otp/request` → `/api/v1/auth/otp/verify`, 6 skaitmenys, galioja 10 min., 5 bandymai, ≤3 kodai per 10 min.). Registracijos nėra: naujus narius kviečia veiklos savininkas (Nustatymai → Veiklos nariai). Rolės: `owner` – viskas; `member` – viskas, išskyrus narius, profilį ir SMTP; `accountant` – tik skaitymas. Slaptažodis naudojamas tik Django `/admin/` (už Cloudflare Access). Laiškai siunčiami per sistemos SMTP (`EMAIL_*`, `DEFAULT_FROM_EMAIL`).
 
 ## Struktūra
 

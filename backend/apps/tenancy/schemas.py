@@ -5,9 +5,30 @@ from ninja import Schema
 from apps.tenancy.models import SellerProfile
 
 
-class LoginIn(Schema):
-    username: str
-    password: str
+class OtpRequestIn(Schema):
+    email: str
+
+
+class OtpVerifyIn(Schema):
+    email: str
+    code: str
+
+
+class MemberOut(Schema):
+    id: int
+    user_id: int
+    email: str
+    name: str
+    role: str
+
+
+class MemberIn(Schema):
+    email: str
+    role: str = "member"
+
+
+class MemberRoleIn(Schema):
+    role: str
 
 
 class TenantOut(Schema):
