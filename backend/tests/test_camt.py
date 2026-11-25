@@ -258,3 +258,28 @@ def test_cash_document_number_shared_by_allocations(api_client, tenant):
     assert r.status_code == 201, r.content
     numbers = {a["doc_number"] for a in r.json()["allocations"]}
     assert numbers == {r.json()["doc_number"]}
+
+
+def test_batch_entry_split_and_reversal():
+    tx = (
+        '<TxDtls><Refs><TxId>{i}</TxId></Refs><AmtDtls><TxAmt><Amt Ccy="EUR">{a}</Amt></TxAmt>'
+        "</AmtDtls><RltdPties><Cdtr><Nm>Gavejas {i}</Nm></Cdtr></RltdPties></TxDtls>"
+    )
+    batch = (
+        '<Ntry><NtryRef>B1</NtryRef><Amt Ccy="EUR">30.00</Amt><CdtDbtInd>DBIT</CdtDbtInd>'
+        "<Sts>BOOK</Sts><BookgDt><Dt>2026-01-09</Dt></BookgDt><NtryDtls>"
+        + tx.format(i=1, a="10.00")
+        + tx.format(i=2, a="20.00")
+        + "</NtryDtls></Ntry>"
+    )
+    reversal = ntry("CRDT", "5", 10, "RV").replace(
+        "<CdtDbtInd>CRDT</CdtDbtInd>", "<CdtDbtInd>CRDT</CdtDbtInd><RvslInd>true</RvslInd>"
+    )
+    entries = camt.parse(document(statement(OWN, [batch, reversal])))[0].entries
+    assert [(e.counterparty_name, e.amount) for e in entries[:2]] == [
+        ("Gavejas 1", Decimal("10.00")),
+        ("Gavejas 2", Decimal("20.00")),
+    ]
+    assert entries[0].external_id != entries[1].external_id
+    assert entries[0].external_id.startswith("B1")
+    assert entries[2].direction == "in"

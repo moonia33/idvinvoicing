@@ -149,11 +149,11 @@ def parse(data: bytes) -> list[Statement]:
             total += 1
             if total > MAX_ENTRIES:
                 raise CamtError(f"Per daug operacijų (daugiausia {MAX_ENTRIES})")
-            entry = _entry(n, stmt, seen)
-            if entry is None:
-                stmt.skipped += 1
+            entries = _entries(n, stmt, seen)
+            if entries:
+                stmt.entries.extend(entries)
             else:
-                stmt.entries.append(entry)
+                stmt.skipped += 1
         statements.append(stmt)
     if not statements:
         raise CamtError("Išraše nėra sąskaitų")
@@ -167,45 +167,82 @@ def _parse_iso(raw: str) -> dt.date | None:
         return None
 
 
-def _entry(n: Element, stmt: Statement, seen: dict[str, int]) -> Entry | None:
-    status = _text(n, "Sts") or _text(n, "Sts", "Cd")
-    if status and status != "BOOK":
-        return None
-    amt_el = _child(n, "Amt")
+def _amount(el: Element | None) -> Decimal | None:
     try:
-        amount = Decimal(_text(n, "Amt"))
+        value = Decimal(_text(el, "Amt"))
     except InvalidOperation:
         return None
-    if amount <= 0:
-        return None
+    return value if value > 0 else None
+
+
+def _entries(n: Element, stmt: Statement, seen: dict[str, int]) -> list[Entry]:
+    """Viena išrašo eilutė (Ntry). Paketinis mokėjimas (keli TxDtls su sumomis) išskaidomas."""
+    status = _text(n, "Sts") or _text(n, "Sts", "Cd")
+    if status and status != "BOOK":
+        return []
+    amount = _amount(n)
+    if amount is None:
+        return []
+    amt_el = _child(n, "Amt")
     currency = (amt_el.get("Ccy") if amt_el is not None else "") or stmt.currency
     indicator = _text(n, "CdtDbtInd")
     if indicator not in ("CRDT", "DBIT"):
-        return None
+        return []
     booked = _date(_child(n, "BookgDt")) or _date(_child(n, "ValDt"))
     if booked is None:
-        return None
-    tx = _child(n, "NtryDtls", "TxDtls")
+        return []
+    txs = [
+        tx
+        for dtls in n
+        if _local(dtls.tag) == "NtryDtls"
+        for tx in dtls
+        if _local(tx.tag) == "TxDtls"
+    ]
+    parts: list[tuple[Element | None, Decimal]] = [(txs[0] if txs else None, amount)]
+    if len(txs) > 1:
+        tx_amounts = [_amount(_child(tx, "AmtDtls", "TxAmt")) or _amount(tx) for tx in txs]
+        if all(tx_amounts) and sum(a for a in tx_amounts if a) == amount:
+            parts = [(tx, a) for tx, a in zip(txs, tx_amounts, strict=True) if a]
+    base_ref = "|".join(p for p in (_text(n, "NtryRef"), _text(n, "AcctSvcrRef")) if p)
+    result = []
+    for idx, (tx, part_amount) in enumerate(parts):
+        ref = base_ref or _text(tx, "Refs", "AcctSvcrRef")
+        if len(parts) > 1 and not ref:
+            ref = _text(tx, "Refs", "AcctSvcrRef")
+        entry = _entry_from_tx(n, tx, stmt, indicator, booked, part_amount, currency, ref)
+        if len(parts) > 1:
+            entry.external_id = f"{entry.external_id}/{idx + 1}"
+        # Identiškos operacijos be ID tame pačiame išraše – numeruojamos.
+        seen[entry.external_id] = seen.get(entry.external_id, 0) + 1
+        if seen[entry.external_id] > 1:
+            entry.external_id = f"{entry.external_id}#{seen[entry.external_id]}"
+        entry.external_id = entry.external_id[:100]
+        result.append(entry)
+    return result
+
+
+def _entry_from_tx(
+    n: Element,
+    tx: Element | None,
+    stmt: Statement,
+    indicator: str,
+    booked: dt.date,
+    amount: Decimal,
+    currency: str,
+    ref: str,
+) -> Entry:
     domain = _text(n, "BkTxCd", "Domn", "Cd")
     family = _text(n, "BkTxCd", "Domn", "Fmly", "Cd")
     sub = _text(n, "BkTxCd", "Domn", "Fmly", "SubFmlyCd")
     incoming = indicator == "CRDT"
     name, iban, code = _party(tx, "Dbtr" if incoming else "Cdtr")
     reference = _reference(tx)
-
-    ref = _text(n, "AcctSvcrRef") or _text(tx, "Refs", "AcctSvcrRef")
-    tx_id = _text(tx, "Refs", "TxId")
-    ext = "|".join(p for p in (_text(n, "NtryRef"), ref, tx_id) if p)
+    ext = "|".join(p for p in (ref, _text(tx, "Refs", "TxId")) if p)
     if not ext:
         digest = hashlib.sha256(
             f"{booked}|{indicator}|{amount}|{currency}|{name}|{iban}|{reference}".encode()
         ).hexdigest()[:32]
         ext = f"h:{digest}"
-    # Identiškos operacijos be ID tame pačiame išraše – numeruojamos.
-    seen[ext] = seen.get(ext, 0) + 1
-    if seen[ext] > 1:
-        ext = f"{ext}#{seen[ext]}"
-
     own = (
         domain == "FORX"
         or (bool(iban) and iban == stmt.account_iban)
@@ -216,7 +253,7 @@ def _entry(n: Element, stmt: Statement, seen: dict[str, int]) -> Entry | None:
         date=booked,
         amount=amount.quantize(Decimal("0.01")),
         currency=currency,
-        external_id=ext[:100],
+        external_id=ext,
         counterparty_name=name[:200],
         counterparty_iban=iban[:34],
         counterparty_code=code[:50],
