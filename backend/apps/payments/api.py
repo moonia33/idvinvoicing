@@ -9,14 +9,16 @@ from ninja.errors import HttpError
 from ninja.files import UploadedFile
 
 from apps.invoicing.models import Counterparty, Invoice, Payment
-from apps.payments import camt
+from apps.payments import camt, matching
 from apps.payments.models import MoneyTransfer
 from apps.payments.schemas import (
     AllocationIn,
     ImportResultOut,
+    LedgerFromTransferIn,
     OpenDocumentOut,
     TransferIn,
     TransferOut,
+    TransferSuggestionsOut,
     TransferUpdateIn,
 )
 from apps.payments.services import (
@@ -27,7 +29,9 @@ from apps.payments.services import (
     assign_cash_doc,
     delete_transfer,
     import_statements,
+    ledger_from_transfer,
     preview_statements,
+    remove_ledger,
     resync_allocations,
     unallocate,
 )
@@ -41,7 +45,7 @@ router = Router(tags=["payments"])
 def _qs(tenant: Tenant):
     return (
         MoneyTransfer.objects.filter(tenant=tenant)
-        .select_related("counterparty")
+        .select_related("counterparty", "ledger_entry")
         .prefetch_related("invoice_allocations__invoice", "purchase_allocations__purchase")
     )
 
@@ -92,6 +96,12 @@ def _out(t: MoneyTransfer) -> dict:
         "doc_number": t.doc_number,
         "account_iban": t.account_iban,
         "bank_import_id": t.bank_import_id,
+        "ledger_entry_id": t.ledger_entry_id,
+        "ledger_label": (
+            f"Žurnalas: {t.ledger_entry.description or t.ledger_entry.get_kind_display()}"
+            if t.ledger_entry
+            else ""
+        ),
         "source": t.source,
         "status": t.status,
         "allocated_total": t.allocated_total,
@@ -217,6 +227,55 @@ def open_documents(request, direction: str, counterparty_id: int | None = None):
     return docs
 
 
+@router.get("/transfers/suggestions", response=list[TransferSuggestionsOut])
+def transfer_suggestions(request, limit: int = 200):
+    """Nesudengtoms operacijoms – siūlomi dokumentai ir žurnalo įrašo pasiūlymas."""
+    from apps.ledger.models import Category
+
+    tenant = current_tenant(request)
+    transfers = [
+        t
+        for t in _qs(tenant).filter(ignored=False, ledger_entry__isnull=True)[
+            : max(1, min(limit, 500))
+        ]
+        if t.unallocated > 0
+    ]
+    docs = {d: matching.open_docs(tenant, d) for d in MoneyTransfer.Direction.values}
+    categories = {
+        c.name.casefold(): c.id for c in Category.objects.filter(tenant=tenant, kind="expense")
+    }
+    result = []
+    for t in transfers:
+        found = matching.suggest(t, docs[t.direction])
+        auto = matching.auto_target(t, docs[t.direction])
+        hint = matching.ledger_hint(t)
+        if hint is not None:
+            hint["category_id"] = categories.get(hint.pop("category_name").casefold())
+        result.append(
+            {
+                "transfer_id": t.id,
+                "documents": [
+                    {
+                        "kind": s.doc.kind,
+                        "id": s.doc.id,
+                        "label": s.doc.label,
+                        "counterparty_name": s.doc.counterparty.name,
+                        "currency": s.doc.currency,
+                        "remaining": s.doc.remaining,
+                        "score": s.score,
+                        "reasons": s.reasons,
+                        "auto": auto is not None
+                        and auto.id == s.doc.id
+                        and auto.kind == s.doc.kind,
+                    }
+                    for s in found
+                ],
+                "ledger": hint,
+            }
+        )
+    return result
+
+
 @router.post("/transfers/import", response=ImportResultOut)
 def import_bank_statement(
     request,
@@ -322,7 +381,27 @@ def add_allocation(request, transfer_id: int, data: AllocationIn):
         doc_type=transfer.doc_type,
         doc_number=allocation_doc_number(transfer),
     )
+    if data.invoice_id is not None:
+        inv = Invoice.objects.select_related("client").get(id=data.invoice_id)
+        matching.remember_counterparty(transfer, inv.client)
+    elif data.purchase_id is not None:
+        pur = Purchase.objects.select_related("supplier").get(id=data.purchase_id)
+        matching.remember_counterparty(transfer, pur.supplier)
     return Status(201, _out(_get(tenant, transfer.id)))
+
+
+@router.post("/transfers/{transfer_id}/ledger", response={201: TransferOut})
+def add_ledger(request, transfer_id: int, data: LedgerFromTransferIn):
+    tenant = current_tenant(request)
+    ledger_from_transfer(_get(tenant, transfer_id), data)
+    return Status(201, _out(_get(tenant, transfer_id)))
+
+
+@router.delete("/transfers/{transfer_id}/ledger", response=TransferOut)
+def delete_ledger(request, transfer_id: int):
+    tenant = current_tenant(request)
+    remove_ledger(_get(tenant, transfer_id))
+    return _out(_get(tenant, transfer_id))
 
 
 @router.delete("/transfers/{transfer_id}/allocations/{kind}/{allocation_id}", response=TransferOut)

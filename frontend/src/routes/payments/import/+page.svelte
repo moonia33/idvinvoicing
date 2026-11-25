@@ -119,12 +119,20 @@
 			<Card.Content class="space-y-3 pt-6">
 				<p class="font-medium">
 					Importuota operacijų: {result.created_count}. Praleista jau buvusių: {result.duplicate_count}.
+					{#if result.auto_allocated_count}
+						Automatiškai sudengta pagal sąskaitos numerį: {result.auto_allocated_count}.
+					{/if}
 				</p>
 				<p class="text-sm text-muted-foreground">
 					Naujos operacijos yra „Nesudengtos“. Atidarykite jas ir sudenkite su sąskaitomis arba
 					pirkimais.
 				</p>
-				<Button href={resolve('/payments') + '?tab=open'}>Rodyti nesudengtus</Button>
+				<div class="flex flex-wrap gap-2">
+					<Button href={resolve('/payments/reconcile')}>Sutikrinti nesudengtus</Button>
+					<Button variant="outline" href={resolve('/payments') + '?tab=open'}
+						>Visi nesudengti</Button
+					>
+				</div>
 			</Card.Content>
 		</Card.Root>
 	{/if}

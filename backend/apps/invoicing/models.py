@@ -11,6 +11,7 @@ class Counterparty(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="counterparties")
     name = models.CharField(max_length=200)
     code = models.CharField("Įmonės / asmens kodas", max_length=50, blank=True)
+    iban = models.CharField("IBAN (įsimenamas iš banko operacijų)", max_length=34, blank=True)
     vat_code = models.CharField("PVM kodas", max_length=50, blank=True)
     email = models.EmailField(blank=True)
     address = models.CharField(max_length=300, blank=True)

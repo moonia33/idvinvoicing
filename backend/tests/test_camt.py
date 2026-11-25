@@ -185,12 +185,10 @@ def test_imported_transfer_can_be_allocated(api_client, tenant):
     inv.recalc_total()
     inv.save(update_fields=["total"])
     issue_invoice(inv, date(2026, 1, 2))
-    upload(api_client, commit="true")
+    # Paskirtyje „SF-2026-0001“ ir suma = likutis → sudengiama automatiškai.
+    assert upload(api_client, commit="true").json()["auto_allocated_count"] == 1
     t = MoneyTransfer.objects.get(external_id="R1|TR1")
-    r = post_json(
-        api_client, f"/api/v1/transfers/{t.id}/allocations", {"invoice_id": inv.id, "amount": "100"}
-    )
-    assert r.status_code == 201, r.content
+    assert t.status == "allocated" and t.counterparty_id == client.id
     inv.refresh_from_db()
     assert inv.status == Invoice.Status.PAID
     listed = api_client.get(f"/api/v1/transfers?source=import&bank_import={t.bank_import_id}")

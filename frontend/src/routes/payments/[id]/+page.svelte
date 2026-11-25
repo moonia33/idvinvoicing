@@ -300,7 +300,25 @@
 				</Table.Root>
 			</Card.Root>
 
-			{#if !t.ignored && toCents(t.unallocated) > 0}
+			{#if t.ledger_entry_id}
+				<Card.Root>
+					<Card.Content class="flex flex-wrap items-center justify-between gap-3 pt-6 text-sm">
+						<span>
+							{t.ledger_label} –
+							<a class="underline" href={resolve('/journal')}>žurnale</a>
+						</span>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={() =>
+								run(() => api<Transfer>(`/transfers/${t!.id}/ledger`, { method: 'DELETE' }))}
+							>Pašalinti iš žurnalo</Button
+						>
+					</Card.Content>
+				</Card.Root>
+			{/if}
+
+			{#if !t.ignored && !t.ledger_entry_id && toCents(t.unallocated) > 0}
 				<Card.Root>
 					<Card.Header>
 						<Card.Title class="text-base">
