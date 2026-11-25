@@ -157,3 +157,4 @@ class LedgerFromTransferIn(Schema):
     deductible: bool = True
     tax_kind: str = Field(default="", pattern="^(|gpm|vsd|psd)$")
     tax_year: int | None = Field(default=None, ge=2000, le=2100)
+    exchange_rate: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=6)

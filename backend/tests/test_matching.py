@@ -203,3 +203,12 @@ def test_number_match_needs_word_boundary():
     assert number_in_text("SF20260001", "apmokejimas sf-2026/0001.")
     assert not number_in_text("1234", "Saskaita 12345")
     assert not number_in_text("SF20260001", "SF-2026-00012")
+
+
+def test_pln_ledger_requires_rate(api_client, tenant):
+    t = transfer(tenant, direction="out", currency="PLN", amount=Decimal("400.00"))
+    url = f"/api/v1/transfers/{t.id}/ledger"
+    assert post_json(api_client, url, {"kind": "expense"}).status_code == 400
+    r = post_json(api_client, url, {"kind": "expense", "exchange_rate": "0.235"})
+    assert r.status_code == 201, r.content
+    assert LedgerEntry.objects.get(id=r.json()["ledger_entry_id"]).amount_eur == Decimal("94.00")

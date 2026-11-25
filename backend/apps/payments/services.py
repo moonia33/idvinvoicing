@@ -470,6 +470,11 @@ def ledger_from_transfer(transfer: MoneyTransfer, data) -> None:
         raise HttpError(400, "Įrašo rūšis turi atitikti mokėjimo kryptį")
     if data.tax_kind and data.kind != "expense":
         raise HttpError(400, "Mokesčio įmoka gali būti tik išlaida")
+    rate = Decimal("1")
+    if transfer.currency != MoneyTransfer.Currency.EUR:
+        if not data.exchange_rate:
+            raise HttpError(400, f"Nurodykite {transfer.currency} → EUR kursą")
+        rate = data.exchange_rate
     category = None
     if data.category_id:
         category = Category.objects.filter(
@@ -492,7 +497,7 @@ def ledger_from_transfer(transfer: MoneyTransfer, data) -> None:
             description=(data.description or transfer.reference)[:300],
             currency=transfer.currency,
             amount_original=transfer.amount,
-            exchange_rate=Decimal("1"),
+            exchange_rate=rate,
             deductible=data.deductible and data.tax_kind != "gpm",
             tax_kind=data.tax_kind,
             tax_year=(data.tax_year or transfer.date.year) if data.tax_kind else None,

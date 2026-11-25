@@ -19,7 +19,7 @@
 		psd: 'PSD'
 	};
 
-	type LedgerForm = LedgerHint & { open: boolean };
+	type LedgerForm = LedgerHint & { open: boolean; exchange_rate: string };
 
 	let transfers = $state<Transfer[]>([]);
 	let suggestions = $state<Record<number, TransferSuggestions>>({});
@@ -53,7 +53,8 @@
 			tax_year: hint?.tax_year ?? null,
 			description: hint?.description ?? '',
 			deductible: hint?.deductible ?? true,
-			category_id: hint?.category_id ?? null
+			category_id: hint?.category_id ?? null,
+			exchange_rate: ''
 		};
 	}
 
@@ -92,7 +93,8 @@
 					description: f.description,
 					deductible: f.deductible,
 					tax_kind: f.tax_kind,
-					tax_year: f.tax_kind ? Number(f.tax_year) || null : null
+					tax_year: f.tax_kind ? Number(f.tax_year) || null : null,
+					exchange_rate: t.currency === 'EUR' ? null : f.exchange_rate || null
 				}
 			})
 		);
@@ -230,6 +232,16 @@
 											bind:value={f.tax_year}
 										/>
 									{/if}
+								{/if}
+								{#if t.currency !== 'EUR'}
+									<Input
+										type="number"
+										step="0.000001"
+										min="0"
+										placeholder={`Kursas ${t.currency} → EUR`}
+										bind:value={f.exchange_rate}
+										required
+									/>
 								{/if}
 								<label class="flex items-center gap-2 text-sm">
 									<input type="checkbox" class="size-4" bind:checked={f.deductible} />
