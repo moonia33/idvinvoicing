@@ -195,7 +195,7 @@ def _entry(n: Element, stmt: Statement, seen: dict[str, int]) -> Entry | None:
 
     ref = _text(n, "AcctSvcrRef") or _text(tx, "Refs", "AcctSvcrRef")
     tx_id = _text(tx, "Refs", "TxId")
-    ext = "|".join(p for p in (ref, tx_id) if p)
+    ext = "|".join(p for p in (_text(n, "NtryRef"), ref, tx_id) if p)
     if not ext:
         digest = hashlib.sha256(
             f"{booked}|{indicator}|{amount}|{currency}|{name}|{iban}|{reference}".encode()
