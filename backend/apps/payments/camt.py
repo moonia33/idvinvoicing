@@ -235,7 +235,10 @@ def _entries(n: Element, stmt: Statement, seen: dict[str, int]) -> list[Entry]:
         seen[entry.external_id] = seen.get(entry.external_id, 0) + 1
         if seen[entry.external_id] > 1:
             entry.external_id = f"{entry.external_id}#{seen[entry.external_id]}"
-        entry.external_id = entry.external_id[:100]
+        if len(entry.external_id) > 100:
+            # Ilgas ID netrumpinamas (sutaptų skirtingos operacijos) – pakeičiamas jo maiša.
+            digest = hashlib.sha256(entry.external_id.encode()).hexdigest()
+            entry.external_id = f"{entry.external_id[:30]}~{digest}"
         result.append(entry)
     return result
 

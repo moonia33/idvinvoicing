@@ -346,3 +346,11 @@ def test_batch_split_with_plain_tx_amounts():
     )
     entries = camt.parse(document(statement(OWN, [batch])))[0].entries
     assert [e.amount for e in entries] == [Decimal("10.00"), Decimal("20.00")]
+
+
+def test_long_ids_stay_unique():
+    long_ref = "X" * 120
+    a = ntry("DBIT", "1", 2, long_ref).replace(f"<TxId>T{long_ref}</TxId>", "<TxId>A</TxId>")
+    b = ntry("DBIT", "1", 2, long_ref).replace(f"<TxId>T{long_ref}</TxId>", "<TxId>B</TxId>")
+    ids = [e.external_id for e in camt.parse(document(statement(OWN, [a, b])))[0].entries]
+    assert len(set(ids)) == 2 and all(len(i) <= 100 for i in ids)
