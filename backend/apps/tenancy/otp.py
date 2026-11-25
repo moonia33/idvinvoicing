@@ -9,6 +9,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
+from django.utils.html import escape
 
 from apps.tenancy.models import LoginCode, User
 
@@ -65,15 +66,29 @@ def send_code(user: User, code: str, request) -> None:
         _send_code(user, code, url)
 
 
+def _code_html(code: str, url: str) -> str:
+    return (
+        '<div style="font-family:Arial,sans-serif;color:#111;max-width:480px">'
+        '<p style="margin:0 0 8px">Jūsų prisijungimo kodas:</p>'
+        '<p style="margin:0 0 16px;font-size:32px;font-weight:700;letter-spacing:6px;'
+        f'font-family:Consolas,Menlo,monospace;user-select:all;-webkit-user-select:all">{code}</p>'
+        '<p style="margin:0 0 8px;color:#555">Kodas galioja 10 min. ir tinka vieną kartą.</p>'
+        f'<p style="margin:0 0 16px"><a href="{escape(url)}">{escape(url)}</a></p>'
+        '<p style="margin:0;color:#888;font-size:12px">'
+        "Jei prisijungti nebandėte, šį laišką ignoruokite.</p></div>"
+    )
+
+
 def _send_code(user: User, code: str, url: str) -> None:
     try:
         send_mail(
-            subject=f"IDV apskaita prisijungimo kodas: {code}",
+            subject=f"Prisijungimo kodas: {code}",
             message=(
                 f"Jūsų prisijungimo kodas: {code}\n\n"
                 f"Kodas galioja 10 min. ir tinka vieną kartą.\n{url}\n\n"
                 "Jei prisijungti nebandėte, šį laišką ignoruokite."
             ),
+            html_message=_code_html(code, url),
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
         )

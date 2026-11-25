@@ -12,6 +12,16 @@ def _code_from_mail() -> str:
     return mail.outbox[-1].subject.rsplit(" ", 1)[-1]
 
 
+def test_code_email_shows_code_in_subject_and_html(client, emailed_user):
+    post_json(client, "/api/v1/auth/otp/request", {"email": emailed_user.email})
+    msg = mail.outbox[-1]
+    code = _code_from_mail()
+    assert msg.subject == f"Prisijungimo kodas: {code}"
+    assert msg.body.startswith(f"Jūsų prisijungimo kodas: {code}")
+    html, mime = msg.alternatives[0]
+    assert mime == "text/html" and f">{code}</p>" in html
+
+
 @pytest.fixture
 def emailed_user(user):
     user.email = "tomas@example.lt"
