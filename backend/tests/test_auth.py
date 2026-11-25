@@ -19,20 +19,6 @@ def test_health(client):
     assert resp.status_code == 200
 
 
-def test_login_wrong_password(client, user):
-    resp = post_json(client, "/api/v1/auth/login", {"username": "tomas", "password": "blogai"})
-    assert resp.status_code == 401
-
-
-def test_login_and_me(client, user, tenant):
-    resp = post_json(client, "/api/v1/auth/login", {"username": "tomas", "password": "slaptas123"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["username"] == "tomas"
-    assert data["current_tenant_id"] == tenant.id
-    assert data["tenants"][0]["name"] == "IT konsultacijos"
-
-
 def test_me_unauthenticated(client):
     assert client.get("/api/v1/auth/me").status_code == 401
 
@@ -62,33 +48,6 @@ def test_profile_upsert(api_client, tenant):
     assert resp.status_code == 200
     assert resp.json()["iban"] == "LT999"
     assert api_client.get("/api/v1/profile").json()["accounting_basis"] == "accrual"
-
-
-def test_change_password(api_client, user):
-    resp = post_json(
-        api_client,
-        "/api/v1/auth/password",
-        {"old_password": "blogas", "new_password": "naujas123"},
-    )
-    assert resp.status_code == 400
-
-    resp = post_json(
-        api_client,
-        "/api/v1/auth/password",
-        {"old_password": "slaptas123", "new_password": "trumpas"},
-    )
-    assert resp.status_code == 400
-
-    resp = post_json(
-        api_client,
-        "/api/v1/auth/password",
-        {"old_password": "slaptas123", "new_password": "naujas-Slaptazodis-2026"},
-    )
-    assert resp.status_code == 200
-    # sesija išlieka (update_session_auth_hash), nauju slaptažodžiu veikia login
-    assert api_client.get("/api/v1/auth/me").status_code == 200
-    user.refresh_from_db()
-    assert user.check_password("naujas-Slaptazodis-2026")
 
 
 def test_profile_logo_upload_and_delete(api_client, tenant):

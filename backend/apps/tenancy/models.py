@@ -91,3 +91,20 @@ class SellerProfile(models.Model):
 
     def __str__(self):
         return f"{self.seller_name} ({self.tenant})"
+
+
+class LoginCode(models.Model):
+    """Vienkartinis prisijungimo kodas el. paštu; saugomas tik HMAC."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="login_codes"
+    )
+    email = models.EmailField()
+    code_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]

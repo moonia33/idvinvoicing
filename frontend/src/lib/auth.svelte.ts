@@ -25,11 +25,16 @@ class Auth {
 		return this.user;
 	}
 
-	async login(username: string, password: string): Promise<void> {
+	async requestCode(email: string): Promise<void> {
 		await ensureCsrf();
-		this.user = await api<Me>('/auth/login', {
+		await api('/auth/otp/request', { method: 'POST', body: { email } });
+	}
+
+	async verifyCode(email: string, code: string): Promise<void> {
+		await ensureCsrf();
+		this.user = await api<Me>('/auth/otp/verify', {
 			method: 'POST',
-			body: { username, password }
+			body: { email, code }
 		});
 		this.loaded = true;
 	}

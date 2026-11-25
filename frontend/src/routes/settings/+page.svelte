@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
-	import type { InvoiceSeries, Profile, SmtpSettings } from '#lib/types';
+	import type { InvoiceSeries, Member, MemberRole, Profile, SmtpSettings } from '#lib/types';
 	import { Star, Trash2 } from '@lucide/svelte';
 	import { Button } from '#lib/components/ui/button';
 	import { Input } from '#lib/components/ui/input';
@@ -111,6 +113,7 @@
 		} catch {
 			seriesList = [];
 		}
+		loadMembers().catch(() => (members = []));
 		const s = await api<SmtpSettings>('/mail/smtp');
 		smtp = {
 			...smtp,
@@ -137,25 +140,66 @@
 		smtpMsg = 'SMTP nustatymai išsaugoti.';
 	}
 
-	let pw = $state({ old_password: '', new_password: '', repeat: '' });
-	let pwMsg = $state('');
+	const ROLES: Record<MemberRole, string> = {
+		owner: 'Savininkas',
+		member: 'Narys',
+		accountant: 'Buhalteris'
+	};
+	const ROLE_HINT: Record<MemberRole, string> = {
+		owner: 'viskas, įskaitant narius ir nustatymus',
+		member: 'sąskaitos, pirkimai, ataskaitos',
+		accountant: 'tik peržiūra ir eksportai'
+	};
+	let isOwner = $derived(auth.currentTenant?.role === 'owner');
+	let members = $state<Member[]>([]);
+	let invite = $state<{ email: string; role: MemberRole }>({ email: '', role: 'member' });
+	let membersMsg = $state('');
 
-	async function savePassword(e: SubmitEvent) {
+	async function loadMembers() {
+		members = await api<Member[]>('/tenants/members');
+	}
+
+	async function inviteMember(e: SubmitEvent) {
 		e.preventDefault();
-		pwMsg = '';
-		if (pw.new_password !== pw.repeat) {
-			pwMsg = 'Nauji slaptažodžiai nesutampa.';
-			return;
-		}
+		membersMsg = '';
 		try {
-			await api('/auth/password', {
-				method: 'POST',
-				body: { old_password: pw.old_password, new_password: pw.new_password }
-			});
-			pw = { old_password: '', new_password: '', repeat: '' };
-			pwMsg = 'Slaptažodis pakeistas.';
+			const m = await api<Member>('/tenants/members', { method: 'POST', body: invite });
+			members = [...members, m];
+			membersMsg = `Pakviesta: ${m.email}. Prisijungimo nuoroda išsiųsta laišku.`;
+			invite = { email: '', role: 'member' };
 		} catch (err) {
-			pwMsg = err instanceof Error ? err.message : 'Klaida';
+			membersMsg = err instanceof Error ? err.message : 'Klaida';
+		}
+	}
+
+	async function changeRole(m: Member, role: MemberRole) {
+		membersMsg = '';
+		try {
+			const upd = await api<Member>(`/tenants/members/${m.id}`, {
+				method: 'PATCH',
+				body: { role }
+			});
+			members = members.map((x) => (x.id === upd.id ? upd : x));
+			if (m.user_id === auth.user?.id) await auth.load();
+		} catch (err) {
+			membersMsg = err instanceof Error ? err.message : 'Klaida';
+			await loadMembers();
+		}
+	}
+
+	async function removeMember(m: Member) {
+		if (!confirm(`Pašalinti ${m.email || m.name} iš veiklos?`)) return;
+		membersMsg = '';
+		try {
+			await api(`/tenants/members/${m.id}`, { method: 'DELETE' });
+			if (m.user_id === auth.user?.id) {
+				await auth.load();
+				goto(auth.currentTenant ? resolve('/') : resolve('/select-tenant'));
+				return;
+			}
+			members = members.filter((x) => x.id !== m.id);
+		} catch (err) {
+			membersMsg = err instanceof Error ? err.message : 'Klaida';
 		}
 	}
 </script>
@@ -398,42 +442,76 @@
 				</div>
 			</div>
 			<p class="text-xs text-muted-foreground">
-				Vartotojo vardą ir el. paštą gali keisti administratorius (/admin).
+				Prisijungiama tik vienkartiniu kodu, siunčiamu šiuo el. paštu. Slaptažodžių nėra. El. paštą
+				gali keisti administratorius (/admin).
 			</p>
-			<Separator />
-			<form onsubmit={savePassword} class="space-y-3">
-				<div class="space-y-1.5">
-					<Label>Dabartinis slaptažodis</Label>
-					<Input
-						type="password"
-						bind:value={pw.old_password}
-						required
-						autocomplete="current-password"
-					/>
-				</div>
-				<div class="grid grid-cols-2 gap-3">
-					<div class="space-y-1.5">
-						<Label>Naujas slaptažodis</Label>
-						<Input
-							type="password"
-							bind:value={pw.new_password}
-							required
-							minlength={12}
-							autocomplete="new-password"
-						/>
+		</Card.Content>
+	</Card.Root>
+
+	<Card.Root class="lg:col-span-2">
+		<Card.Header
+			><Card.Title>Veiklos nariai</Card.Title><Card.Description
+				>Kas gali tvarkyti veiklą „{auth.currentTenant?.name}“</Card.Description
+			></Card.Header
+		>
+		<Card.Content class="space-y-4">
+			<div class="divide-y rounded-md border">
+				{#each members as m (m.id)}
+					<div class="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+						<div class="min-w-0 flex-1">
+							<div class="truncate font-medium">{m.email || m.name}</div>
+							<div class="text-xs text-muted-foreground">{ROLE_HINT[m.role]}</div>
+						</div>
+						{#if isOwner}
+							<select
+								class="h-9 rounded-md border bg-background px-2 text-sm"
+								aria-label="Rolė"
+								value={m.role}
+								onchange={(e) => changeRole(m, e.currentTarget.value as MemberRole)}
+							>
+								{#each Object.entries(ROLES) as [v, l] (v)}<option value={v}>{l}</option>{/each}
+							</select>
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label="Pašalinti narį"
+								onclick={() => removeMember(m)}><Trash2 class="size-4" /></Button
+							>
+						{:else}
+							<span class="text-muted-foreground">{ROLES[m.role]}</span>
+						{/if}
+					</div>
+				{/each}
+			</div>
+			{#if isOwner}
+				<Separator />
+				<form onsubmit={inviteMember} class="flex flex-wrap items-end gap-3">
+					<div class="min-w-56 flex-1 space-y-1.5">
+						<Label for="invite-email">Pakviesti pagal el. paštą</Label>
+						<Input id="invite-email" type="email" bind:value={invite.email} required />
 					</div>
 					<div class="space-y-1.5">
-						<Label>Pakartoti naują</Label>
-						<Input type="password" bind:value={pw.repeat} required autocomplete="new-password" />
+						<Label for="invite-role">Rolė</Label>
+						<select
+							id="invite-role"
+							class="h-9 rounded-md border bg-background px-2 text-sm"
+							bind:value={invite.role}
+						>
+							{#each Object.entries(ROLES) as [v, l] (v)}<option value={v}>{l}</option>{/each}
+						</select>
 					</div>
-				</div>
-				{#if pwMsg}
-					<p class="text-sm {pwMsg.includes('pakeistas') ? 'text-green-600' : 'text-red-600'}">
-						{pwMsg}
-					</p>
-				{/if}
-				<Button type="submit">Pakeisti slaptažodį</Button>
-			</form>
+					<Button type="submit">Pakviesti</Button>
+				</form>
+				<p class="text-xs text-muted-foreground">
+					Jei vartotojo dar nėra, jis sukuriamas be slaptažodžio ir gauna kvietimo laišką.
+					Prisijungs kodu el. paštu.
+				</p>
+			{/if}
+			{#if membersMsg}
+				<p class="text-sm {membersMsg.startsWith('Pakviesta') ? 'text-green-600' : 'text-red-600'}">
+					{membersMsg}
+				</p>
+			{/if}
 		</Card.Content>
 	</Card.Root>
 </div>
