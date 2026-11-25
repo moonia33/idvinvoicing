@@ -21,7 +21,8 @@
 		Package,
 		ShoppingCart,
 		Truck,
-		Plus
+		Plus,
+		Wallet
 	} from '@lucide/svelte';
 	import type { LayoutProps } from './$types';
 	import { api } from '#lib/api';
@@ -46,6 +47,7 @@
 		{ href: '/clients', label: 'Klientai', icon: Users },
 		{ href: '/purchases', label: 'Pirkimai', icon: ShoppingCart },
 		{ href: '/suppliers', label: 'Tiekėjai', icon: Truck },
+		{ href: '/payments', label: 'Mokėjimai', icon: Wallet },
 		{ href: '/journal', label: 'Žurnalas', icon: BookOpen },
 		{ href: '/recurring', label: 'Pasikartojančios', icon: Repeat },
 		{ href: '/taxes', label: 'Mokesčiai', icon: Calculator },

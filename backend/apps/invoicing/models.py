@@ -170,6 +170,13 @@ class Payment(models.Model):
     )
     doc_number = models.CharField(max_length=40, blank=True)
     note = models.CharField(max_length=200, blank=True)
+    transfer = models.ForeignKey(
+        "payments.MoneyTransfer",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="invoice_allocations",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "apps.tenancy",
     "apps.invoicing",
     "apps.purchases",
+    "apps.payments",
     "apps.ledger",
     "apps.taxes",
     "apps.reports",

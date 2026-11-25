@@ -7,6 +7,12 @@ from ninja.errors import HttpError
 from apps.invoicing.models import Counterparty
 from apps.invoicing.schemas import ContactIn, ContactOut
 from apps.ledger.models import Category
+from apps.payments.services import (
+    delete_mirror_transfers,
+    mirror_transfer_ids,
+    sync_document_payment,
+    transfer_for_purchase_payment,
+)
 from apps.purchases.models import Purchase, PurchasePayment
 from apps.purchases.schemas import (
     PurchaseIn,
@@ -134,7 +140,7 @@ def create_purchase(request, data: PurchaseIn):
                     else PurchasePayment.DocType.NONE
                 )
             )
-            purchase.payments.create(
+            paid = purchase.payments.create(
                 amount_original=purchase.total,
                 exchange_rate=purchase.exchange_rate,
                 paid_at=purchase.document_date,
@@ -156,6 +162,8 @@ def create_purchase(request, data: PurchaseIn):
                     )
                 ),
             )
+            paid.transfer = transfer_for_purchase_payment(paid)
+            paid.save(update_fields=["transfer"])
             purchase.recalc_status()
             purchase.save(update_fields=["status", "updated_at"])
     return Status(201, get_purchase(tenant, purchase.id))
@@ -199,7 +207,9 @@ def cancel_purchase(request, purchase_id: int):
     if purchase.status == Purchase.Status.CANCELLED:
         raise HttpError(400, "Pirkinys jau anuliuotas")
     with transaction.atomic():
+        transfer_ids = mirror_transfer_ids(purchase.payments.select_related("transfer"))
         purchase.payments.all().delete()  # anuliuojant – mokėjimai šalinami
+        delete_mirror_transfers(transfer_ids)
         purchase.status = Purchase.Status.CANCELLED
         purchase.save(update_fields=["status", "updated_at"])
     return purchase
@@ -217,6 +227,8 @@ def add_purchase_payment(request, purchase_id: int, data: PurchasePaymentIn):
         payload["doc_number"] = next_kio_number(purchase.tenant, data.paid_at.year)
     with transaction.atomic():
         payment = purchase.payments.create(**payload)
+        payment.transfer = transfer_for_purchase_payment(payment)
+        payment.save(update_fields=["transfer"])
         purchase.recalc_status()
         purchase.save(update_fields=["status", "updated_at"])
     return Status(201, payment)
@@ -239,6 +251,7 @@ def update_purchase_payment(request, payment_id: int, data: PurchasePaymentIn):
         for key, value in payload.items():
             setattr(payment, key, value)
         payment.save()  # save() perskaičiuoja amount_eur
+        sync_document_payment(payment)
         purchase.recalc_status()
         purchase.save(update_fields=["status", "updated_at"])
     return payment
@@ -250,6 +263,7 @@ def delete_purchase_payment(request, payment_id: int):
     purchase = payment.purchase
     with transaction.atomic():
         payment.delete()
+        delete_mirror_transfers(mirror_transfer_ids([payment]))
         purchase.recalc_status()
         purchase.save(update_fields=["status", "updated_at"])
     return Status(204, None)

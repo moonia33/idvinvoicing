@@ -37,6 +37,12 @@ from apps.invoicing.services import (
     issue_invoice,
     next_cash_doc_number,
 )
+from apps.payments.services import (
+    delete_mirror_transfers,
+    mirror_transfer_ids,
+    sync_document_payment,
+    transfer_for_invoice_payment,
+)
 from apps.tenancy.api import current_tenant
 from apps.tenancy.models import Tenant
 
@@ -394,7 +400,9 @@ def cancel_invoice(request, invoice_id: int):
     if invoice.status == Invoice.Status.CANCELLED:
         raise HttpError(400, "Sąskaita jau atšaukta")
     with transaction.atomic():
+        transfer_ids = mirror_transfer_ids(invoice.payments.select_related("transfer"))
         invoice.payments.all().delete()  # anuliuojant – mokėjimai šalinami
+        delete_mirror_transfers(transfer_ids)
         invoice.status = Invoice.Status.CANCELLED
         invoice.save(update_fields=["status", "updated_at"])
     return invoice
@@ -412,6 +420,8 @@ def add_payment(request, invoice_id: int, data: PaymentIn):
         )
     with transaction.atomic():
         payment = invoice.payments.create(**payload)
+        payment.transfer = transfer_for_invoice_payment(payment)
+        payment.save(update_fields=["transfer"])
         invoice.recalc_status()
         invoice.save(update_fields=["status", "updated_at"])
     return Status(201, payment)
@@ -432,6 +442,7 @@ def update_payment(request, payment_id: int, data: PaymentIn):
         for key, value in payload.items():
             setattr(payment, key, value)
         payment.save()
+        sync_document_payment(payment)
         invoice.recalc_status()
         invoice.save(update_fields=["status", "updated_at"])
     return payment
@@ -443,6 +454,7 @@ def delete_payment(request, payment_id: int):
     invoice = payment.invoice
     with transaction.atomic():
         payment.delete()
+        delete_mirror_transfers(mirror_transfer_ids([payment]))
         invoice.recalc_status()
         invoice.save(update_fields=["status", "updated_at"])
     return Status(204, None)

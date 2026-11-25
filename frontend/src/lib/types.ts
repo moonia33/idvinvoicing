@@ -263,3 +263,50 @@ export interface RecurringTemplate {
 	notes: string;
 	lines: InvoiceLine[];
 }
+
+export type TransferDirection = 'in' | 'out';
+export type TransferStatus = 'unallocated' | 'partial' | 'allocated' | 'ignored';
+
+export interface TransferAllocation {
+	id: number;
+	kind: 'invoice' | 'purchase';
+	document_id: number;
+	document_label: string;
+	amount: string;
+	doc_type: string;
+	doc_number: string;
+}
+
+export interface Transfer {
+	id: number;
+	direction: TransferDirection;
+	date: string;
+	amount: string;
+	currency: string;
+	method: PaymentMethod;
+	counterparty_id: number | null;
+	counterparty_display: string;
+	counterparty_name: string;
+	counterparty_iban: string;
+	reference: string;
+	note: string;
+	ignored: boolean;
+	source: 'manual' | 'import';
+	status: TransferStatus;
+	allocated_total: string;
+	unallocated: string;
+	allocations: TransferAllocation[];
+}
+
+export interface OpenDocument {
+	kind: 'invoice' | 'purchase';
+	id: number;
+	label: string;
+	counterparty_id: number;
+	counterparty_name: string;
+	date: string;
+	due_date: string | null;
+	currency: string;
+	total: string;
+	remaining: string;
+}
