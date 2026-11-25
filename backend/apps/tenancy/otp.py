@@ -2,10 +2,12 @@ import hashlib
 import hmac
 import logging
 import secrets
+import threading
 from datetime import timedelta
 
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import transaction
 from django.utils import timezone
 
 from apps.tenancy.models import LoginCode, User
@@ -15,6 +17,7 @@ logger = logging.getLogger(__name__)
 CODE_TTL = timedelta(minutes=10)
 MAX_ATTEMPTS = 5
 MAX_CODES_PER_WINDOW = 3
+OTP_SESSION_FLAG = "otp_login"
 
 
 def _hash(code: str) -> str:
@@ -36,23 +39,39 @@ def login_url(request) -> str:
 
 def issue_code(user: User) -> str | None:
     """Sukuria naują kodą (seni anuliuojami). None – viršytas prašymų limitas."""
-    now = timezone.now()
-    recent = LoginCode.objects.filter(user=user, created_at__gte=now - CODE_TTL).count()
-    if recent >= MAX_CODES_PER_WINDOW:
-        return None
-    LoginCode.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
-    code = f"{secrets.randbelow(1_000_000):06d}"
-    LoginCode.objects.create(user=user, code_hash=_hash(code), expires_at=now + CODE_TTL)
+    with transaction.atomic():
+        User.objects.select_for_update().filter(pk=user.pk).first()
+        now = timezone.now()
+        recent = LoginCode.objects.filter(user=user, created_at__gte=now - CODE_TTL).count()
+        if recent >= MAX_CODES_PER_WINDOW:
+            return None
+        LoginCode.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        LoginCode.objects.create(
+            user=user,
+            email=user.email.lower(),
+            code_hash=_hash(code),
+            expires_at=now + CODE_TTL,
+        )
     return code
 
 
 def send_code(user: User, code: str, request) -> None:
+    """Siunčia fone, kad atsakymo trukmė neišduotų, ar paskyra egzistuoja."""
+    url = login_url(request)
+    if getattr(settings, "OTP_EMAIL_ASYNC", True):
+        threading.Thread(target=_send_code, args=(user, code, url), daemon=True).start()
+    else:
+        _send_code(user, code, url)
+
+
+def _send_code(user: User, code: str, url: str) -> None:
     try:
         send_mail(
             subject=f"IDV apskaita prisijungimo kodas: {code}",
             message=(
                 f"Jūsų prisijungimo kodas: {code}\n\n"
-                f"Kodas galioja 10 min. ir tinka vieną kartą.\n{login_url(request)}\n\n"
+                f"Kodas galioja 10 min. ir tinka vieną kartą.\n{url}\n\n"
                 "Jei prisijungti nebandėte, šį laišką ignoruokite."
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
@@ -63,15 +82,20 @@ def send_code(user: User, code: str, request) -> None:
 
 
 def verify_code(user: User, code: str) -> bool:
-    now = timezone.now()
-    lc = LoginCode.objects.filter(user=user, used_at__isnull=True, expires_at__gt=now).first()
-    if lc is None:
-        return False
-    lc.attempts += 1
-    ok = hmac.compare_digest(lc.code_hash, _hash(code.strip()))
-    if ok or lc.attempts >= MAX_ATTEMPTS:
-        lc.used_at = now
-    lc.save(update_fields=["attempts", "used_at"])
+    with transaction.atomic():
+        now = timezone.now()
+        lc = (
+            LoginCode.objects.select_for_update()
+            .filter(user=user, email__iexact=user.email, used_at__isnull=True, expires_at__gt=now)
+            .first()
+        )
+        if lc is None:
+            return False
+        lc.attempts += 1
+        ok = hmac.compare_digest(lc.code_hash, _hash(code.strip()))
+        if ok or lc.attempts >= MAX_ATTEMPTS:
+            lc.used_at = now
+        lc.save(update_fields=["attempts", "used_at"])
     return ok
 
 

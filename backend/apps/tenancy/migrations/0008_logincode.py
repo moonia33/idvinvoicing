@@ -16,6 +16,7 @@ class Migration(migrations.Migration):
             name='LoginCode',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('email', models.EmailField(max_length=254)),
                 ('code_hash', models.CharField(max_length=64)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('expires_at', models.DateTimeField()),
