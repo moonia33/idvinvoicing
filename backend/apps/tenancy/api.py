@@ -65,6 +65,7 @@ def otp_verify(request, data: OtpVerifyIn):
     if user is None or not otp.verify_code(user, data.code):
         return Status(401, {"detail": "Neteisingas arba nebegaliojantis kodas"})
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    request.session[otp.OTP_SESSION_FLAG] = True
     tenant = Tenant.objects.filter(memberships__user=user).first()
     if tenant:
         request.session["tenant_id"] = tenant.id

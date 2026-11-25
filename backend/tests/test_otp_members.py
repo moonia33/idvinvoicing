@@ -161,3 +161,24 @@ def test_members_isolated_between_tenants(api_client, other_tenant, other_user):
     assert api_client.delete(f"/api/v1/tenants/members/{m.id}").status_code == 404
     emails = [x["email"] for x in api_client.get("/api/v1/tenants/members").json()]
     assert other_user.email not in emails or other_user.email == ""
+
+
+def test_code_bound_to_email_at_issue(client, emailed_user):
+    post_json(client, "/api/v1/auth/otp/request", {"email": "tomas@example.lt"})
+    code = _code_from_mail()
+    emailed_user.email = "naujas@example.lt"
+    emailed_user.save(update_fields=["email"])
+    resp = post_json(
+        client, "/api/v1/auth/otp/verify", {"email": "naujas@example.lt", "code": code}
+    )
+    assert resp.status_code == 401
+
+
+def test_otp_session_does_not_open_admin(client, emailed_user):
+    emailed_user.is_staff = emailed_user.is_superuser = True
+    emailed_user.save()
+    post_json(client, "/api/v1/auth/otp/request", {"email": "tomas@example.lt"})
+    post_json(
+        client, "/api/v1/auth/otp/verify", {"email": "tomas@example.lt", "code": _code_from_mail()}
+    )
+    assert client.get("/admin/").status_code == 302
