@@ -183,6 +183,12 @@ def _decimal(el: Element) -> Decimal | None:
     return value if value > 0 else None
 
 
+def _tx_amount_el(tx: Element) -> Element | None:
+    """Įrašyta operacijos suma: AmtDtls/TxAmt/Amt, o jei jos nėra – TxDtls/Amt."""
+    el = _child(tx, "AmtDtls", "TxAmt", "Amt")
+    return el if el is not None else _child(tx, "Amt")
+
+
 def _entries(n: Element, stmt: Statement, seen: dict[str, int]) -> list[Entry]:
     """Viena išrašo eilutė (Ntry). Paketinis mokėjimas (keli TxDtls su sumomis) išskaidomas."""
     status = _text(n, "Sts") or _text(n, "Sts", "Cd")
@@ -211,7 +217,7 @@ def _entries(n: Element, stmt: Statement, seen: dict[str, int]) -> list[Entry]:
         # Tik sąskaitos valiutos (įrašyta) suma; originalios valiutos sumos netinka.
         tx_amounts = [
             _decimal(el) if el is not None and el.get("Ccy", currency) == currency else None
-            for el in (_child(tx, "AmtDtls", "TxAmt", "Amt") for tx in txs)
+            for el in (_tx_amount_el(tx) for tx in txs)
         ]
         if all(tx_amounts) and sum(a for a in tx_amounts if a) == amount:
             parts = [(tx, a) for tx, a in zip(txs, tx_amounts, strict=True) if a]

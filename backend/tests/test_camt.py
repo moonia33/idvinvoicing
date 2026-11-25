@@ -330,3 +330,19 @@ def test_later_allocations_keep_document_numbers(api_client, tenant):
     assert first == [kpo["doc_number"]]
     both = alloc(kpo["id"], invs[1])
     assert len(set(both)) == 2 and all("," not in n for n in both)
+
+
+def test_batch_split_with_plain_tx_amounts():
+    tx = (
+        '<TxDtls><Refs><TxId>{i}</TxId></Refs><Amt Ccy="EUR">{a}</Amt>'
+        "<RltdPties><Cdtr><Nm>Gavejas {i}</Nm></Cdtr></RltdPties></TxDtls>"
+    )
+    batch = (
+        '<Ntry><Amt Ccy="EUR">30.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts>BOOK</Sts>'
+        "<BookgDt><Dt>2026-01-09</Dt></BookgDt><NtryDtls>"
+        + tx.format(i=1, a="10.00")
+        + tx.format(i=2, a="20.00")
+        + "</NtryDtls></Ntry>"
+    )
+    entries = camt.parse(document(statement(OWN, [batch])))[0].entries
+    assert [e.amount for e in entries] == [Decimal("10.00"), Decimal("20.00")]
