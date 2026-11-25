@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
+	import { auth } from '#lib/auth.svelte';
 	import type { ImportEntry, ImportResult } from '#lib/types';
 	import { fmtDate, fmtMoney, PAYMENT_METHODS } from '#lib/format';
 	import { Button } from '#lib/components/ui/button';
@@ -17,6 +18,15 @@
 	let showDuplicates = $state(false);
 	let busy = $state(false);
 	let error = $state('');
+	let previewTenant = $state<number | null>(null);
+
+	// Perjungus veiklą senos peržiūros nebegalima importuoti.
+	$effect(() => {
+		if (preview && auth.currentTenant?.id !== previewTenant) {
+			preview = null;
+			error = 'Pasikeitė aktyvi veikla – įkelkite išrašą iš naujo';
+		}
+	});
 
 	const key = (e: ImportEntry) => `${e.account_iban}:${e.external_id}`;
 	let importable = $derived(
@@ -33,6 +43,7 @@
 		fd.append('file', file as File);
 		if (commit) {
 			fd.append('commit', 'true');
+			fd.append('tenant_id', String(previewTenant));
 			fd.append('ignored', JSON.stringify(Object.keys(ignored).filter((k) => ignored[k])));
 		}
 		return fd;
@@ -47,6 +58,7 @@
 		if (!file) return;
 		busy = true;
 		try {
+			previewTenant = auth.currentTenant?.id ?? null;
 			preview = await api<ImportResult>('/transfers/import', { method: 'POST', body: form(false) });
 			ignored = Object.fromEntries(preview.entries.map((x) => [key(x), x.own_transfer]));
 		} catch (err) {

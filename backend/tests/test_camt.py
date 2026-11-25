@@ -283,3 +283,10 @@ def test_batch_entry_split_and_reversal():
     assert entries[0].external_id != entries[1].external_id
     assert entries[0].external_id.startswith("B1")
     assert entries[2].direction == "in"
+
+
+def test_commit_rejected_after_tenant_switch(api_client, tenant):
+    r = upload(api_client, commit="true", tenant_id=str(tenant.id + 999))
+    assert r.status_code == 409
+    assert not MoneyTransfer.objects.exists()
+    assert upload(api_client, commit="true", tenant_id=str(tenant.id)).status_code == 200

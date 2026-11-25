@@ -222,9 +222,12 @@ def import_bank_statement(
     file: UploadedFile = File(...),  # noqa: B008
     commit: bool = Form(False),  # noqa: B008
     ignored: str = Form(""),  # noqa: B008
+    tenant_id: int | None = Form(None),  # noqa: B008
 ):
     """camt.053 XML: be `commit` – tik peržiūra; su `commit` – įrašo naujas operacijas."""
     tenant = current_tenant(request)
+    if tenant_id is not None and tenant_id != tenant.id:
+        raise HttpError(409, "Pasikeitė aktyvi veikla – įkelkite išrašą iš naujo")
     if file.size and file.size > camt.MAX_FILE_SIZE:
         raise HttpError(400, "Failas per didelis (daugiausia 10 MB)")
     try:
