@@ -60,3 +60,28 @@ export const FREQ_LABELS: Record<string, string> = {
 	quarterly: 'Kas ketvirtį',
 	yearly: 'Kasmet'
 };
+
+export const TRANSFER_DIRECTIONS: Record<string, string> = {
+	in: 'Gauta',
+	out: 'Sumokėta'
+};
+
+export const TRANSFER_STATUS_LABELS: Record<string, string> = {
+	unallocated: 'Nesudengta',
+	partial: 'Dalinai sudengta',
+	allocated: 'Sudengta',
+	ignored: 'Neapskaitoma'
+};
+
+export const TRANSFER_STATUS_VARIANTS: Record<
+	string,
+	'secondary' | 'default' | 'outline' | 'destructive'
+> = {
+	unallocated: 'destructive',
+	partial: 'secondary',
+	allocated: 'outline',
+	ignored: 'secondary'
+};
+
+export const fmtMoney = (v: string | number, currency = 'EUR'): string =>
+	new Intl.NumberFormat('lt-LT', { style: 'currency', currency }).format(Number(v));
