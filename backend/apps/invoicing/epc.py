@@ -21,7 +21,9 @@ class PaymentQr:
 
     @property
     def svg_data_uri(self) -> str:
-        return segno.make(self.payload, error="m", micro=False).svg_data_uri(scale=4, border=2)
+        return segno.make(self.payload, error="m", micro=False, encoding="utf-8").svg_data_uri(
+            scale=4, border=2
+        )
 
 
 def normalize_iban(value: str) -> str:
