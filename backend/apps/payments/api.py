@@ -359,6 +359,12 @@ def update_transfer(request, transfer_id: int, data: TransferUpdateIn):
         transfer.mirror = False
         transfer.save()
         resync_allocations(transfer)
+        entry = transfer.ledger_entry
+        if entry is not None:
+            # Žurnalo įrašas atspindi mokėjimą: data ir suma keičiasi kartu.
+            entry.document_date = entry.paid_date = transfer.date
+            entry.amount_original = transfer.amount
+            entry.save()
     return _out(_get(tenant, transfer.id))
 
 

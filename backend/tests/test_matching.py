@@ -212,3 +212,16 @@ def test_pln_ledger_requires_rate(api_client, tenant):
     r = post_json(api_client, url, {"kind": "expense", "exchange_rate": "0.235"})
     assert r.status_code == 201, r.content
     assert LedgerEntry.objects.get(id=r.json()["ledger_entry_id"]).amount_eur == Decimal("94.00")
+
+
+def test_transfer_edit_updates_ledger_entry(api_client, tenant):
+    r = post_json(api_client, "/api/v1/transfers",
+                  {"direction": "out", "date": "2026-02-01", "amount": "10.00"})
+    tid = r.json()["id"]
+    r = post_json(api_client, f"/api/v1/transfers/{tid}/ledger", {"kind": "expense"})
+    entry_id = r.json()["ledger_entry_id"]
+    r = api_client.put(f"/api/v1/transfers/{tid}", {"date": "2026-02-03", "amount": "12.50"},
+                       content_type="application/json")
+    assert r.status_code == 200, r.content
+    entry = LedgerEntry.objects.get(id=entry_id)
+    assert (entry.amount_eur, entry.paid_date) == (Decimal("12.50"), date(2026, 2, 3))
