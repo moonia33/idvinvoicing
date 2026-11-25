@@ -215,13 +215,19 @@ def test_pln_ledger_requires_rate(api_client, tenant):
 
 
 def test_transfer_edit_updates_ledger_entry(api_client, tenant):
-    r = post_json(api_client, "/api/v1/transfers",
-                  {"direction": "out", "date": "2026-02-01", "amount": "10.00"})
+    r = post_json(
+        api_client,
+        "/api/v1/transfers",
+        {"direction": "out", "date": "2026-02-01", "amount": "10.00"},
+    )
     tid = r.json()["id"]
     r = post_json(api_client, f"/api/v1/transfers/{tid}/ledger", {"kind": "expense"})
     entry_id = r.json()["ledger_entry_id"]
-    r = api_client.put(f"/api/v1/transfers/{tid}", {"date": "2026-02-03", "amount": "12.50"},
-                       content_type="application/json")
+    r = api_client.put(
+        f"/api/v1/transfers/{tid}",
+        {"date": "2026-02-03", "amount": "12.50"},
+        content_type="application/json",
+    )
     assert r.status_code == 200, r.content
     entry = LedgerEntry.objects.get(id=entry_id)
     assert (entry.amount_eur, entry.paid_date) == (Decimal("12.50"), date(2026, 2, 3))
@@ -230,9 +236,14 @@ def test_transfer_edit_updates_ledger_entry(api_client, tenant):
 def test_third_party_iban_not_remembered(api_client, tenant):
     client = Counterparty.objects.create(tenant=tenant, name="UAB Saulė")
     inv = make_invoice(tenant, client, 42)
-    t = transfer(tenant, amount=Decimal("42.00"), counterparty_name="Jonas Jonaitis",
-                 counterparty_iban="LT121000011101001000")
-    post_json(api_client, f"/api/v1/transfers/{t.id}/allocations",
-              {"invoice_id": inv.id, "amount": "42"})
+    t = transfer(
+        tenant,
+        amount=Decimal("42.00"),
+        counterparty_name="Jonas Jonaitis",
+        counterparty_iban="LT121000011101001000",
+    )
+    post_json(
+        api_client, f"/api/v1/transfers/{t.id}/allocations", {"invoice_id": inv.id, "amount": "42"}
+    )
     client.refresh_from_db()
     assert client.iban == ""
