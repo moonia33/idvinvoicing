@@ -29,6 +29,7 @@ class Migration(migrations.Migration):
                 ('note', models.CharField(blank=True, max_length=200)),
                 ('ignored', models.BooleanField(default=False, verbose_name='Neapskaitoma')),
                 ('source', models.CharField(choices=[('manual', 'Rankinis'), ('import', 'Banko išrašas')], default='manual', max_length=10)),
+                ('mirror', models.BooleanField(default=False, help_text='1:1 mokėjimas, įvestas sąskaitos/pirkinio puslapyje; sinchronizuojamas su juo.', verbose_name='Sukurta iš dokumento')),
                 ('account_iban', models.CharField(blank=True, max_length=34, verbose_name='Sąskaita (išrašas)')),
                 ('external_id', models.CharField(blank=True, max_length=100, verbose_name='Banko operacijos ID')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),

@@ -23,8 +23,10 @@ def purchase_remaining(purchase: Purchase) -> Decimal:
     return purchase.total - purchase.paid_total
 
 
-def transfer_for_invoice_payment(payment: Payment) -> MoneyTransfer:
+def transfer_for_invoice_payment(payment: Payment) -> MoneyTransfer | None:
     inv = payment.invoice
+    if payment.amount <= 0:
+        return None
     return MoneyTransfer.objects.create(
         tenant=inv.tenant,
         direction=MoneyTransfer.Direction.IN,
@@ -34,11 +36,14 @@ def transfer_for_invoice_payment(payment: Payment) -> MoneyTransfer:
         method=payment.method,
         counterparty=inv.client,
         note=payment.note,
+        mirror=True,
     )
 
 
-def transfer_for_purchase_payment(payment: PurchasePayment) -> MoneyTransfer:
+def transfer_for_purchase_payment(payment: PurchasePayment) -> MoneyTransfer | None:
     pur = payment.purchase
+    if payment.amount_original <= 0:
+        return None
     return MoneyTransfer.objects.create(
         tenant=pur.tenant,
         direction=MoneyTransfer.Direction.OUT,
@@ -48,34 +53,42 @@ def transfer_for_purchase_payment(payment: PurchasePayment) -> MoneyTransfer:
         method=payment.method,
         counterparty=pur.supplier,
         note=payment.note,
+        mirror=True,
     )
 
 
-def sync_single_transfer(transfer: MoneyTransfer | None, amount: Decimal, payment) -> None:
-    """Dokumento puslapyje redaguojant mokėjimą, sinchronizuoja rankinį 1:1 mokėjimą."""
+def sync_document_payment(payment) -> None:
+    """Dokumento puslapyje redaguotą mokėjimą suderina su registru.
+
+    Iš dokumento sukurtas (mirror) mokėjimas atnaujinamas kartu; registre įvesto
+    mokėjimo sudengimo data ir būdas turi sutapti su mokėjimu (pinigų principas)."""
+    transfer = payment.transfer
     if transfer is None:
         return
-    if (
-        transfer.source == MoneyTransfer.Source.MANUAL
-        and transfer.invoice_allocations.count() + transfer.purchase_allocations.count() == 1
-    ):
+    amount = transfer.allocation_amount(payment)
+    if transfer.mirror:
+        if amount <= 0:
+            raise HttpError(400, "Suma turi būti teigiama")
         transfer.amount = amount
         transfer.date = payment.paid_at
         transfer.method = payment.method
         transfer.save(update_fields=["amount", "date", "method"])
-    elif transfer.unallocated < 0:
-        raise HttpError(400, "Sudengta suma viršija banko operacijos sumą")
+        return
+    if payment.paid_at != transfer.date or payment.method != transfer.method:
+        raise HttpError(
+            400, "Mokėjimas įvestas registre – datą ir būdą keiskite puslapyje „Mokėjimai“"
+        )
+    if transfer.unallocated < 0:
+        raise HttpError(400, "Sudengta suma viršija mokėjimo sumą")
 
 
-def cleanup_transfers(transfer_ids: Iterable[int | None]) -> None:
-    """Pašalina rankinius mokėjimus, kurie liko be sudengimų (importuoti lieka)."""
-    ids = {i for i in transfer_ids if i}
-    MoneyTransfer.objects.filter(
-        id__in=ids,
-        source=MoneyTransfer.Source.MANUAL,
-        invoice_allocations__isnull=True,
-        purchase_allocations__isnull=True,
-    ).delete()
+def mirror_transfer_ids(payments) -> list[int]:
+    """Iš dokumento sukurti mokėjimai, kuriuos reikia šalinti kartu su sudengimu."""
+    return [p.transfer_id for p in payments if p.transfer_id and p.transfer.mirror]
+
+
+def delete_mirror_transfers(transfer_ids: Iterable[int]) -> None:
+    MoneyTransfer.objects.filter(id__in=set(transfer_ids), mirror=True).delete()
 
 
 def allocate(

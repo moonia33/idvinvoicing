@@ -8,8 +8,9 @@ from apps.invoicing.models import Counterparty
 from apps.invoicing.schemas import ContactIn, ContactOut
 from apps.ledger.models import Category
 from apps.payments.services import (
-    cleanup_transfers,
-    sync_single_transfer,
+    delete_mirror_transfers,
+    mirror_transfer_ids,
+    sync_document_payment,
     transfer_for_purchase_payment,
 )
 from apps.purchases.models import Purchase, PurchasePayment
@@ -206,9 +207,9 @@ def cancel_purchase(request, purchase_id: int):
     if purchase.status == Purchase.Status.CANCELLED:
         raise HttpError(400, "Pirkinys jau anuliuotas")
     with transaction.atomic():
-        transfer_ids = list(purchase.payments.values_list("transfer_id", flat=True))
+        transfer_ids = mirror_transfer_ids(purchase.payments.select_related("transfer"))
         purchase.payments.all().delete()  # anuliuojant – mokėjimai šalinami
-        cleanup_transfers(transfer_ids)
+        delete_mirror_transfers(transfer_ids)
         purchase.status = Purchase.Status.CANCELLED
         purchase.save(update_fields=["status", "updated_at"])
     return purchase
@@ -250,9 +251,7 @@ def update_purchase_payment(request, payment_id: int, data: PurchasePaymentIn):
         for key, value in payload.items():
             setattr(payment, key, value)
         payment.save()  # save() perskaičiuoja amount_eur
-        if payment.transfer:
-            amount = payment.transfer.allocation_amount(payment)
-            sync_single_transfer(payment.transfer, amount, payment)
+        sync_document_payment(payment)
         purchase.recalc_status()
         purchase.save(update_fields=["status", "updated_at"])
     return payment
@@ -264,7 +263,7 @@ def delete_purchase_payment(request, payment_id: int):
     purchase = payment.purchase
     with transaction.atomic():
         payment.delete()
-        cleanup_transfers([payment.transfer_id])
+        delete_mirror_transfers(mirror_transfer_ids([payment]))
         purchase.recalc_status()
         purchase.save(update_fields=["status", "updated_at"])
     return Status(204, None)

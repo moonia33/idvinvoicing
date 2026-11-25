@@ -204,6 +204,13 @@ def test_cancel_invoice_removes_manual_keeps_imported(api_client, tenant, klient
     assert list(MoneyTransfer.objects.values_list("id", flat=True)) == [imported.id]
 
 
+def test_cancel_invoice_keeps_register_payment(api_client, tenant, klientas):
+    a = make_invoice(tenant, klientas, Decimal("100"), 10)
+    r = new_transfer(api_client, amount="30.00", allocations=[{"invoice_id": a.id, "amount": "30"}])
+    assert post_json(api_client, f"/api/v1/invoices/{a.id}/cancel", {}).status_code == 200
+    assert MoneyTransfer.objects.get(id=r.json()["id"]).status == "unallocated"
+
+
 def test_purchase_allocation_and_pln(api_client, tenant):
     sup = Counterparty.objects.create(tenant=tenant, name="Tiekėjas", is_supplier=True)
     eur = make_purchase(api_client, sup.id, "50.00")
@@ -251,3 +258,48 @@ def test_data_migration_creates_transfers(tenant, klientas):
     mig.forwards(django_apps, None)
     t = MoneyTransfer.objects.get()
     assert t.amount == Decimal("100") and t.status == "allocated" and t.counterparty == klientas
+
+
+def test_document_edit_of_register_payment(api_client, tenant, klientas):
+    a = make_invoice(tenant, klientas, Decimal("100"), 10)
+    r = new_transfer(
+        api_client, amount="150.00", allocations=[{"invoice_id": a.id, "amount": "100"}]
+    )
+    tid, pid = r.json()["id"], r.json()["allocations"][0]["id"]
+
+    def put(body):
+        return api_client.put(f"/api/v1/payments/{pid}", body, content_type="application/json")
+
+    assert put({"amount": "90", "paid_at": "2026-02-01"}).status_code == 200
+    t = MoneyTransfer.objects.get(id=tid)
+    assert t.amount == Decimal("150.00") and t.unallocated == Decimal("60.00")
+    assert put({"amount": "90", "paid_at": "2026-02-05"}).status_code == 400
+    api_client.delete(f"/api/v1/payments/{pid}")
+    assert MoneyTransfer.objects.filter(id=tid).exists()
+
+
+def test_zero_paid_now_purchase_has_no_transfer(api_client, tenant):
+    sup = Counterparty.objects.create(tenant=tenant, name="Tiekėjas", is_supplier=True)
+    r = post_json(
+        api_client,
+        "/api/v1/purchases",
+        {
+            "supplier_id": sup.id,
+            "document_date": "2026-01-05",
+            "paid_now": True,
+            "lines": [{"description": "Nemokama", "quantity": "1", "unit_price": "0"}],
+        },
+    )
+    assert r.status_code == 201, r.content
+    assert not MoneyTransfer.objects.exists()
+
+
+def test_data_migration_backwards_keeps_payments(tenant, klientas):
+    a = make_invoice(tenant, klientas, Decimal("100"), 10)
+    kept = Payment.objects.create(invoice=a, amount=Decimal("100"), paid_at=date(2026, 1, 15))
+    Payment.objects.create(invoice=a, amount=Decimal("0"), paid_at=date(2026, 1, 16))
+    mig = importlib.import_module("apps.payments.migrations.0002_transfers_from_payments")
+    mig.forwards(django_apps, None)
+    assert MoneyTransfer.objects.count() == 1 and MoneyTransfer.objects.get().mirror
+    mig.backwards(django_apps, None)
+    assert Payment.objects.count() == 2 and Payment.objects.get(id=kept.id).transfer is None

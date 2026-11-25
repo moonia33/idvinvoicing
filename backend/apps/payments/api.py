@@ -241,6 +241,7 @@ def update_transfer(request, transfer_id: int, data: TransferUpdateIn):
         for key, value in data.model_dump(exclude={"counterparty_id"}).items():
             setattr(transfer, key, value)
         transfer.counterparty = _counterparty(tenant, data.counterparty_id)
+        transfer.mirror = False
         transfer.save()
         resync_allocations(transfer)
     return _out(_get(tenant, transfer.id))

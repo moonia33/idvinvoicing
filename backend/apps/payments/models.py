@@ -54,6 +54,11 @@ class MoneyTransfer(models.Model):
     note = models.CharField(max_length=200, blank=True)
     ignored = models.BooleanField("Neapskaitoma", default=False)
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.MANUAL)
+    mirror = models.BooleanField(
+        "Sukurta iš dokumento",
+        default=False,
+        help_text="1:1 mokėjimas, įvestas sąskaitos/pirkinio puslapyje; sinchronizuojamas su juo.",
+    )
     account_iban = models.CharField("Sąskaita (išrašas)", max_length=34, blank=True)
     external_id = models.CharField("Banko operacijos ID", max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
