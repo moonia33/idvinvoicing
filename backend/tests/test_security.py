@@ -215,3 +215,21 @@ def test_reencrypt_migration_reverse_restores_legacy(tenant, settings):
     smtp.refresh_from_db()
     assert smtp.password == "slaptas"
     fields._fernet.cache_clear()
+
+
+def test_reencrypt_migration_reverse_fails_on_unreadable_password(tenant, settings):
+    import importlib
+
+    from django.apps import apps
+    from django.db import connection
+
+    mig = importlib.import_module("apps.mailer.migrations.0002_reencrypt_smtp_passwords")
+    settings.FIELD_ENCRYPTION_KEY = Fernet.generate_key().decode()
+    fields._fernet.cache_clear()
+    SmtpSettings.objects.create(tenant=tenant, host="smtp.x.lt", password="slaptas")
+    settings.FIELD_ENCRYPTION_KEY = Fernet.generate_key().decode()
+    fields._fernet.cache_clear()
+
+    with pytest.raises(RuntimeError, match="neiššifruojamas"):
+        mig.back_to_legacy(apps, type("Editor", (), {"connection": connection})())
+    fields._fernet.cache_clear()

@@ -21,9 +21,12 @@ def back_to_legacy(apps, schema_editor):
     table = SmtpSettings._meta.db_table
     with schema_editor.connection.cursor() as cur:
         for smtp in SmtpSettings.objects.exclude(password=""):
-            if smtp.password:
-                token = legacy.encrypt(smtp.password.encode()).decode()
-                cur.execute(f"UPDATE {table} SET password = %s WHERE id = %s", [token, smtp.pk])
+            if not smtp.password:
+                raise RuntimeError(
+                    f"SMTP slaptažodis (id={smtp.pk}) neiššifruojamas – patikrinkite DJANGO_FIELD_ENCRYPTION_KEY"
+                )
+            token = legacy.encrypt(smtp.password.encode()).decode()
+            cur.execute(f"UPDATE {table} SET password = %s WHERE id = %s", [token, smtp.pk])
 
 
 class Migration(migrations.Migration):
