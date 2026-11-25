@@ -25,7 +25,7 @@ docker compose -f docker-compose.dev.yml up --build
 
 ```bash
 docker compose -f docker-compose.dev.yml up db
-cd backend && uv sync && uv run python manage.py migrate && uv run python manage.py runserver
+cd backend && uv sync && export DJANGO_DEBUG=true && uv run python manage.py migrate && uv run python manage.py runserver
 cd frontend && pnpm install && pnpm dev
 ```
 
@@ -34,7 +34,7 @@ cd frontend && pnpm install && pnpm dev
 ## Prod-like paleidimas
 
 ```bash
-cp .env.example .env   # užpildyti POSTGRES_PASSWORD, DJANGO_SECRET_KEY
+cp .env.example .env   # užpildyti POSTGRES_PASSWORD, DJANGO_SECRET_KEY, DJANGO_FIELD_ENCRYPTION_KEY
 docker compose up --build -d
 ```
 

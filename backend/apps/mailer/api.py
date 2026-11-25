@@ -1,7 +1,9 @@
 from ninja import Router
+from ninja.errors import HttpError
 
 from apps.mailer.models import EmailOutbox, SmtpSettings
 from apps.mailer.schemas import OutboxOut, SmtpIn, SmtpOut
+from apps.mailer.validators import ensure_public_smtp_host
 from apps.tenancy.api import current_tenant
 
 router = Router()
@@ -37,6 +39,11 @@ def get_smtp(request):
 @router.put("/mail/smtp", response=SmtpOut)
 def upsert_smtp(request, data: SmtpIn):
     tenant = current_tenant(request)
+    if data.host:
+        try:
+            ensure_public_smtp_host(data.host, data.port)
+        except ValueError as exc:
+            raise HttpError(400, str(exc)) from None
     defaults = data.model_dump()
     if not defaults["password"]:
         defaults.pop("password")  # tuščias slaptažodis = nepakeistas

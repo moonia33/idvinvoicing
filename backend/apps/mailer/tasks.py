@@ -7,6 +7,7 @@ from django.utils import timezone
 from django_q.tasks import async_task
 
 from apps.mailer.models import EmailOutbox
+from apps.mailer.validators import ensure_public_smtp_host
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ def process_outbox() -> dict:
             continue
         try:
             if smtp is not None:
+                ensure_public_smtp_host(smtp.host, smtp.port)
                 conn = get_connection(
                     host=smtp.host,
                     port=smtp.port,
