@@ -71,6 +71,14 @@ class MoneyTransfer(models.Model):
         "Kasos dokumentas", max_length=10, choices=DocType.choices, default="", blank=True
     )
     doc_number = models.CharField("Mokėjimo dokumento nr.", max_length=40, blank=True)
+    ledger_entry = models.OneToOneField(
+        "ledger.LedgerEntry",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transfer",
+        verbose_name="Žurnalo įrašas (mokestis, banko mokestis ir pan.)",
+    )
     bank_import = models.ForeignKey(
         "payments.BankImport",
         on_delete=models.SET_NULL,
@@ -80,6 +88,7 @@ class MoneyTransfer(models.Model):
     )
     account_iban = models.CharField("Sąskaita (išrašas)", max_length=34, blank=True)
     external_id = models.CharField("Banko operacijos ID", max_length=100, blank=True)
+    bank_code = models.CharField("Banko operacijos kodas", max_length=40, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -106,6 +115,8 @@ class MoneyTransfer(models.Model):
 
     @property
     def allocated_total(self) -> Decimal:
+        if self.ledger_entry_id:
+            return self.amount
         total = sum((a.amount for a in self.invoice_allocations.all()), ZERO)
         total += sum((self.allocation_amount(a) for a in self.purchase_allocations.all()), ZERO)
         return total

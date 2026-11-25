@@ -295,6 +295,8 @@ export interface Transfer {
 	doc_number: string;
 	account_iban: string;
 	bank_import_id: number | null;
+	ledger_entry_id: number | null;
+	ledger_label: string;
 	source: 'manual' | 'import';
 	status: TransferStatus;
 	allocated_total: string;
@@ -352,4 +354,32 @@ export interface ImportResult {
 	duplicate_count: number;
 	unsupported_count: number;
 	created_count: number;
+	auto_allocated_count: number;
+}
+
+export interface SuggestedDoc {
+	kind: 'invoice' | 'purchase';
+	id: number;
+	label: string;
+	counterparty_name: string;
+	currency: string;
+	remaining: string;
+	score: number;
+	reasons: string[];
+	auto: boolean;
+}
+
+export interface LedgerHint {
+	kind: 'income' | 'expense';
+	tax_kind: '' | 'gpm' | 'vsd' | 'psd';
+	tax_year: number | null;
+	description: string;
+	deductible: boolean;
+	category_id: number | null;
+}
+
+export interface TransferSuggestions {
+	transfer_id: number;
+	documents: SuggestedDoc[];
+	ledger: LedgerHint | null;
 }

@@ -160,6 +160,8 @@ def allocate(
         raise HttpError(400, "Sudengiama suma turi būti teigiama")
     if transfer.ignored:
         raise HttpError(400, "Neapskaitomas mokėjimas negali būti sudengtas")
+    if transfer.ledger_entry_id:
+        raise HttpError(400, "Mokėjimas jau įtrauktas į žurnalą")
     if (invoice_id is None) == (purchase_id is None):
         raise HttpError(400, "Nurodykite vieną dokumentą")
     with transaction.atomic():
@@ -273,7 +275,10 @@ def delete_transfer(transfer: MoneyTransfer) -> None:
             p.invoice for p in transfer.invoice_allocations.select_related("invoice")
         ]
         docs += [p.purchase for p in transfer.purchase_allocations.select_related("purchase")]
+        entry = transfer.ledger_entry
         transfer.delete()
+        if entry is not None:
+            entry.delete()
         for doc in docs:
             doc.recalc_status()
             doc.save(update_fields=["status", "updated_at"])
@@ -319,12 +324,17 @@ def match_counterparty(tenant, entry, *, cache: dict | None = None):
     if "by_code" not in cache:
         by_code: dict[str, list[int]] = {}
         by_name: dict[str, list[int]] = {}
-        for cp in Counterparty.objects.filter(tenant=tenant).only("id", "name", "code"):
+        by_iban: dict[str, list[int]] = {}
+        for cp in Counterparty.objects.filter(tenant=tenant).only("id", "name", "code", "iban"):
+            if cp.iban:
+                by_iban.setdefault(cp.iban, []).append(cp.id)
             if cp.code:
                 by_code.setdefault(cp.code.strip(), []).append(cp.id)
             by_name.setdefault(_norm_name(cp.name), []).append(cp.id)
-        cache["by_code"], cache["by_name"] = by_code, by_name
-    ids = cache["by_code"].get(entry.counterparty_code) if entry.counterparty_code else None
+        cache["by_code"], cache["by_name"], cache["by_iban"] = by_code, by_name, by_iban
+    ids = cache["by_iban"].get(entry.counterparty_iban) if entry.counterparty_iban else None
+    if not ids and entry.counterparty_code:
+        ids = cache["by_code"].get(entry.counterparty_code)
     if not ids and entry.counterparty_name:
         ids = cache["by_name"].get(_norm_name(entry.counterparty_name))
     return ids[0] if ids and len(ids) == 1 else None
@@ -389,10 +399,12 @@ def preview_statements(tenant, statements) -> dict:
 
 def import_statements(tenant, user, statements, *, file_name: str, ignored_ids: set[str]):
     """Įrašo naujas operacijas kaip nesudengtus mokėjimus. Kartotinis importas saugus."""
+    from apps.payments.matching import auto_allocate
     from apps.payments.models import BankImport
 
     preview = preview_statements(tenant, statements)
     created = 0
+    new_transfers: list[MoneyTransfer] = []
     with transaction.atomic():
         imports: dict[str, BankImport] = {}
         for s in statements:
@@ -410,7 +422,7 @@ def import_statements(tenant, user, statements, *, file_name: str, ignored_ids: 
             if r["duplicate"] or not r["supported"]:
                 continue
             key = f"{r['account_iban']}:{r['external_id']}"
-            _, was_created = MoneyTransfer.objects.get_or_create(
+            transfer, was_created = MoneyTransfer.objects.get_or_create(
                 tenant=tenant,
                 account_iban=r["account_iban"],
                 external_id=r["external_id"],
@@ -425,17 +437,80 @@ def import_statements(tenant, user, statements, *, file_name: str, ignored_ids: 
                     "counterparty_iban": r["counterparty_iban"],
                     "reference": r["reference"],
                     "ignored": key in ignored_ids,
+                    "bank_code": r["bank_code"][:40],
                     "source": MoneyTransfer.Source.IMPORT,
                     "bank_import": imports[r["account_iban"]],
                 },
             )
             r["duplicate"] = not was_created
             created += int(was_created)
+            if was_created:
+                new_transfers.append(transfer)
         for bi in imports.values():
             rows = [r for r in preview["entries"] if r["account_iban"] == bi.account_iban]
             bi.created_count = bi.transfers.count()
             bi.duplicate_count = sum(1 for r in rows if r["duplicate"])
             bi.save(update_fields=["created_count", "duplicate_count"])
+        preview["auto_allocated_count"] = auto_allocate(tenant, new_transfers)
     preview["created_count"] = created
     preview["new_count"] = 0
     return preview
+
+
+def ledger_from_transfer(transfer: MoneyTransfer, data) -> None:
+    """Operacija be dokumento → žurnalo įrašas (Sodra, VMI, banko mokestis, kitos pajamos)."""
+    from apps.ledger.models import Category, LedgerEntry
+
+    if transfer.ignored:
+        raise HttpError(400, "Neapskaitomas mokėjimas į žurnalą neįtraukiamas")
+    if transfer.ledger_entry_id or transfer.allocated_total > 0:
+        raise HttpError(400, "Mokėjimas jau sudengtas")
+    expected = "income" if transfer.direction == MoneyTransfer.Direction.IN else "expense"
+    if data.kind != expected:
+        raise HttpError(400, "Įrašo rūšis turi atitikti mokėjimo kryptį")
+    if data.tax_kind and data.kind != "expense":
+        raise HttpError(400, "Mokesčio įmoka gali būti tik išlaida")
+    rate = Decimal("1")
+    if transfer.currency != MoneyTransfer.Currency.EUR:
+        if not data.exchange_rate:
+            raise HttpError(400, f"Nurodykite {transfer.currency} → EUR kursą")
+        rate = data.exchange_rate
+    category = None
+    if data.category_id:
+        category = Category.objects.filter(
+            tenant=transfer.tenant, id=data.category_id, kind=data.kind
+        ).first()
+        if category is None:
+            raise HttpError(404, "Kategorija nerasta")
+    with transaction.atomic():
+        transfer = MoneyTransfer.objects.select_for_update().get(pk=transfer.pk)
+        if transfer.ledger_entry_id or transfer.allocated_total > 0:
+            raise HttpError(400, "Mokėjimas jau sudengtas")
+        counterparty = transfer.counterparty.name if transfer.counterparty else ""
+        entry = LedgerEntry.objects.create(
+            tenant=transfer.tenant,
+            kind=data.kind,
+            category=category,
+            document_date=transfer.date,
+            paid_date=transfer.date,
+            counterparty=(counterparty or transfer.counterparty_name)[:200],
+            description=(data.description or transfer.reference)[:300],
+            currency=transfer.currency,
+            amount_original=transfer.amount,
+            exchange_rate=rate,
+            deductible=data.deductible and data.tax_kind != "gpm",
+            tax_kind=data.tax_kind,
+            tax_year=(data.tax_year or transfer.date.year) if data.tax_kind else None,
+        )
+        transfer.ledger_entry = entry
+        transfer.save(update_fields=["ledger_entry"])
+
+
+def remove_ledger(transfer: MoneyTransfer) -> None:
+    with transaction.atomic():
+        entry = transfer.ledger_entry
+        if entry is None:
+            raise HttpError(400, "Mokėjimas nesusietas su žurnalu")
+        transfer.ledger_entry = None
+        transfer.save(update_fields=["ledger_entry"])
+        entry.delete()

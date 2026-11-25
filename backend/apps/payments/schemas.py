@@ -61,6 +61,8 @@ class TransferOut(Schema):
     doc_number: str
     account_iban: str
     bank_import_id: int | None
+    ledger_entry_id: int | None
+    ledger_label: str
     source: MoneyTransfer.Source
     status: MoneyTransfer.Status
     allocated_total: Decimal
@@ -118,3 +120,41 @@ class ImportResultOut(Schema):
     duplicate_count: int
     unsupported_count: int
     created_count: int = 0
+    auto_allocated_count: int = 0
+
+
+class SuggestedDocOut(Schema):
+    kind: str
+    id: int
+    label: str
+    counterparty_name: str
+    currency: str
+    remaining: Decimal
+    score: int
+    reasons: list[str]
+    auto: bool
+
+
+class LedgerHintOut(Schema):
+    kind: str
+    tax_kind: str
+    tax_year: int | None
+    description: str
+    deductible: bool
+    category_id: int | None = None
+
+
+class TransferSuggestionsOut(Schema):
+    transfer_id: int
+    documents: list[SuggestedDocOut]
+    ledger: LedgerHintOut | None
+
+
+class LedgerFromTransferIn(Schema):
+    kind: str = Field(pattern="^(income|expense)$")
+    category_id: int | None = None
+    description: str = Field(default="", max_length=300)
+    deductible: bool = True
+    tax_kind: str = Field(default="", pattern="^(|gpm|vsd|psd)$")
+    tax_year: int | None = Field(default=None, ge=2000, le=2100)
+    exchange_rate: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=6)
