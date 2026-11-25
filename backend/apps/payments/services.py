@@ -105,15 +105,18 @@ CASH_DOCS = {
 }
 
 
-def assign_cash_doc(transfer: MoneyTransfer) -> None:
-    """Patikrina kasos dokumento tipą ir, jei reikia, suteikia KPO/PPK/KIO numerį."""
+def assign_cash_doc(transfer: MoneyTransfer, *, number: bool = True) -> None:
+    """Patikrina kasos dokumento tipą ir, jei `number`, suteikia KPO/PPK/KIO numerį.
+
+    Sudengiant kelis dokumentus kiekvienas sudengimas gauna savo orderį (PDF – vienam
+    dokumentui), todėl tada numeris čia nesuteikiamas."""
     if not transfer.doc_type:
         return
     if transfer.method != MoneyTransfer.Method.CASH:
         raise HttpError(400, "Kasos dokumentas galimas tik grynųjų mokėjimui")
     if transfer.doc_type not in CASH_DOCS[MoneyTransfer.Direction(transfer.direction)]:
         raise HttpError(400, "Netinkamas kasos dokumentas šiai krypčiai")
-    if transfer.doc_number:
+    if transfer.doc_number or not number:
         return
     year = transfer.date.year
     if transfer.direction == MoneyTransfer.Direction.IN and transfer.doc_type in ("kpo", "ppk"):

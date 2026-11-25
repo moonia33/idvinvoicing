@@ -233,7 +233,7 @@ def test_cash_documents_on_transfer(api_client, tenant):
     assert api_client.get("/api/v1/transfers?q=PAV-1").json()[0]["id"] == bank.json()["id"]
 
 
-def test_cash_document_number_shared_by_allocations(api_client, tenant):
+def test_cash_document_numbers_per_allocation(api_client, tenant):
     client = Counterparty.objects.create(tenant=tenant, name="UAB Klientas")
     invs = []
     for price in (30, 20):
@@ -256,8 +256,9 @@ def test_cash_document_number_shared_by_allocations(api_client, tenant):
         },
     )
     assert r.status_code == 201, r.content
-    numbers = {a["doc_number"] for a in r.json()["allocations"]}
-    assert numbers == {r.json()["doc_number"]}
+    numbers = [a["doc_number"] for a in r.json()["allocations"]]
+    assert len(set(numbers)) == 2 and all(n.startswith("KPO") for n in numbers)
+    assert r.json()["doc_number"] == ", ".join(sorted(numbers))
 
 
 def test_batch_entry_split_and_reversal():

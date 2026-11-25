@@ -260,9 +260,9 @@ def create_transfer(request, data: TransferIn):
         transfer = MoneyTransfer(
             tenant=tenant, counterparty=_counterparty(tenant, data.counterparty_id), **values
         )
-        assign_cash_doc(transfer)
+        assign_cash_doc(transfer, number=not data.allocations)
         transfer.save()
-        for a in data.allocations:
+        numbers = [
             allocate(
                 transfer,
                 a.amount,
@@ -271,7 +271,12 @@ def create_transfer(request, data: TransferIn):
                 exchange_rate=a.exchange_rate,
                 doc_type=transfer.doc_type,
                 doc_number=transfer.doc_number,
-            )
+            ).doc_number
+            for a in data.allocations
+        ]
+        if transfer.doc_type and not transfer.doc_number and numbers:
+            transfer.doc_number = ", ".join(n for n in numbers if n)[:40]
+            transfer.save(update_fields=["doc_number"])
     return Status(201, _out(_get(tenant, transfer.id)))
 
 
@@ -314,7 +319,8 @@ def add_allocation(request, transfer_id: int, data: AllocationIn):
         purchase_id=data.purchase_id,
         exchange_rate=data.exchange_rate,
         doc_type=transfer.doc_type,
-        doc_number=transfer.doc_number,
+        # Avanso orderio numeris – tik pirmam sudengimui; kiti gauna savo orderius.
+        doc_number="" if transfer.allocated_total > 0 else transfer.doc_number,
     )
     return Status(201, _out(_get(tenant, transfer.id)))
 
