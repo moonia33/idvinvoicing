@@ -222,7 +222,8 @@ def _entries(n: Element, stmt: Statement, seen: dict[str, int]) -> list[Entry]:
         if len(parts) > 1 and not ref:
             ref = _text(tx, "Refs", "AcctSvcrRef")
         entry = _entry_from_tx(n, tx, stmt, indicator, booked, part_amount, currency, ref)
-        if len(parts) > 1:
+        if len(parts) > 1 and not _text(tx, "Refs", "TxId"):
+            # Be operacijos ID – pozicija pakete (kitaip ID nekinta perrikiavus paketą).
             entry.external_id = f"{entry.external_id}/{idx + 1}"
         # Identiškos operacijos be ID tame pačiame išraše – numeruojamos.
         seen[entry.external_id] = seen.get(entry.external_id, 0) + 1
