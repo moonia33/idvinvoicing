@@ -146,10 +146,10 @@ def parse(data: bytes) -> list[Statement]:
             stmt.period_to = _parse_iso(_text(period, "ToDtTm") or _text(period, "ToDt"))
         seen: dict[str, int] = {}
         for n in (c for c in stmt_el if _local(c.tag) == "Ntry"):
-            total += 1
+            entries = _entries(n, stmt, seen)
+            total += max(len(entries), 1)
             if total > MAX_ENTRIES:
                 raise CamtError(f"Per daug operacijų (daugiausia {MAX_ENTRIES})")
-            entries = _entries(n, stmt, seen)
             if entries:
                 stmt.entries.extend(entries)
             else:
