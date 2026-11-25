@@ -64,7 +64,9 @@
 		const qs = queryString({ direction, counterparty_id: counterpartyId });
 		docs = await api<OpenDocument[]>(`/transfers/open-documents${qs}`);
 		manual = false;
-		redistribute();
+		// Be kontragento nieko automatiškai nepriskiriame – tik ranka arba mygtuku.
+		if (counterpartyId) redistribute();
+		else alloc = {};
 	}
 
 	function redistribute() {
@@ -78,7 +80,7 @@
 	}
 
 	function onAmountInput() {
-		if (!manual && !ignored) redistribute();
+		if (!manual && !ignored && counterpartyId) redistribute();
 	}
 
 	function setDirection(d: TransferDirection) {
