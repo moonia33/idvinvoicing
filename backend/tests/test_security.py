@@ -195,3 +195,23 @@ def test_api_not_affected_by_access(client, cf_access):
 
 def test_admin_open_when_access_not_configured(client):
     assert client.get("/admin/login/").status_code == 200
+
+
+def test_reencrypt_migration_reverse_restores_legacy(tenant, settings):
+    import importlib
+
+    from django.apps import apps
+    from django.db import connection
+
+    mig = importlib.import_module("apps.mailer.migrations.0002_reencrypt_smtp_passwords")
+    settings.FIELD_ENCRYPTION_KEY = Fernet.generate_key().decode()
+    fields._fernet.cache_clear()
+    smtp = SmtpSettings.objects.create(tenant=tenant, host="smtp.x.lt", password="slaptas")
+
+    mig.back_to_legacy(apps, type("Editor", (), {"connection": connection})())
+
+    settings.FIELD_ENCRYPTION_KEY = ""
+    fields._fernet.cache_clear()
+    smtp.refresh_from_db()
+    assert smtp.password == "slaptas"
+    fields._fernet.cache_clear()
