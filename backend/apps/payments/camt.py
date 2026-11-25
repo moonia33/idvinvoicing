@@ -182,8 +182,6 @@ def _entry(n: Element, stmt: Statement, seen: dict[str, int]) -> Entry | None:
     indicator = _text(n, "CdtDbtInd")
     if indicator not in ("CRDT", "DBIT"):
         return None
-    if _text(n, "RvslInd").lower() == "true":
-        indicator = "DBIT" if indicator == "CRDT" else "CRDT"
     booked = _date(_child(n, "BookgDt")) or _date(_child(n, "ValDt"))
     if booked is None:
         return None
