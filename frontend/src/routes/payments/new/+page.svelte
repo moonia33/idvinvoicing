@@ -42,6 +42,7 @@
 	let note = $state('');
 	let ignored = $state(false);
 	let docType = $state('');
+	let docNumber = $state('');
 
 	let contacts = $state<Contact[]>([]);
 	let docs = $state<OpenDocument[]>([]);
@@ -55,6 +56,10 @@
 	let allocatedCents = $derived(visibleDocs.reduce((s, d) => s + toCents(alloc[key(d)] ?? ''), 0));
 	let leftCents = $derived(toCents(amount) - allocatedCents);
 	let cashDocs = $derived(direction === 'in' ? DOC_TYPE_LABELS : PURCHASE_DOC_TYPES);
+	let autoNumber = $derived(
+		method === 'cash' &&
+			(docType === 'kpo' || docType === 'kio' || (docType === 'ppk' && direction === 'in'))
+	);
 
 	async function loadContacts() {
 		contacts = await api<Contact[]>(direction === 'in' ? '/clients' : '/suppliers');
@@ -135,6 +140,7 @@
 					note,
 					ignored,
 					doc_type: method === 'cash' ? docType : '',
+					doc_number: docNumber,
 					allocations
 				}
 			});
@@ -252,7 +258,20 @@
 					<Label for="note">Pastaba</Label>
 					<Input id="note" bind:value={note} maxlength={200} />
 				</div>
-				{#if method === 'cash' && !ignored}
+				<div class="space-y-1.5">
+					<Label for="docnr">Mokėjimo dokumento nr.</Label>
+					<Input
+						id="docnr"
+						bind:value={docNumber}
+						maxlength={40}
+						placeholder={autoNumber
+							? 'Tuščia – numeris suteikiamas automatiškai'
+							: method === 'cash'
+								? 'Pvz. kvito nr.'
+								: 'Pvz. pavedimo nr.'}
+					/>
+				</div>
+				{#if method === 'cash'}
 					<div class="space-y-1.5">
 						<Label>Kasos dokumentas</Label>
 						<Select.Root type="single" bind:value={docType}>

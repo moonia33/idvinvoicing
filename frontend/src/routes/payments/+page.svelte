@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { api } from '#lib/api';
 	import type { Transfer } from '#lib/types';
 	import {
@@ -28,7 +29,7 @@
 	] as const;
 
 	let transfers = $state<Transfer[]>([]);
-	let tab = $state<string>('all');
+	let tab = $state<string>(page.url.searchParams.get('tab') ?? 'all');
 	let dateFrom = $state('');
 	let dateTo = $state('');
 	let q = $state('');
@@ -81,7 +82,8 @@
 
 <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
 	<h1 class="text-2xl font-semibold">Mokėjimai</h1>
-	<div class="flex gap-2">
+	<div class="flex flex-wrap gap-2">
+		<Button variant="outline" href={resolve('/payments/import')}>Importuoti išrašą</Button>
 		<Button variant="outline" href={resolve('/payments/new') + '?direction=out'}>
 			Naujas sumokėtas
 		</Button>
@@ -161,7 +163,8 @@
 					<Table.Cell class="whitespace-nowrap">{fmtDate(t.date)}</Table.Cell>
 					<Table.Cell class="font-medium">{t.counterparty_display || '–'}</Table.Cell>
 					<Table.Cell class="max-w-xs truncate text-sm text-muted-foreground">
-						{t.allocations.map((a) => a.document_label).join(', ') || t.reference || t.note}
+						{#if t.doc_number}<span class="font-medium text-foreground">{t.doc_number}</span>
+						{/if}{t.allocations.map((a) => a.document_label).join(', ') || t.reference || t.note}
 					</Table.Cell>
 					<Table.Cell class="text-sm">{PAYMENT_METHODS[t.method]}</Table.Cell>
 					<Table.Cell>

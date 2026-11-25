@@ -21,6 +21,11 @@
 	encode gzip
 	import security_headers
 
+	# Didžiausia užklausa (banko išrašas ≤10 MB, logotipas) – kad dideli failai nepasiektų disko.
+	request_body {
+		max_size 12MB
+	}
+
 	# Django (API, admin, static): griežta CSP; SvelteKit puslapių CSP nustato pats SvelteKit (nonce).
 	@django path /api/* /admin/* /static/*
 	header @django Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"

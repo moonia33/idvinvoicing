@@ -160,13 +160,14 @@ class Payment(models.Model):
         NONE = "", "Be dokumento"
         KPO = "kpo", "Kasos pajamų orderis (KPO)"
         PPK = "ppk", "Pinigų priėmimo kvitas (PPK)"
+        RECEIPT = "receipt", "Kasos kvitas (čekis)"
 
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payments")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     paid_at = models.DateField()
     method = models.CharField(max_length=10, choices=Method.choices, default=Method.BANK)
     doc_type = models.CharField(
-        max_length=4, choices=DocType.choices, default=DocType.NONE, blank=True
+        max_length=10, choices=DocType.choices, default=DocType.NONE, blank=True
     )
     doc_number = models.CharField(max_length=40, blank=True)
     note = models.CharField(max_length=200, blank=True)

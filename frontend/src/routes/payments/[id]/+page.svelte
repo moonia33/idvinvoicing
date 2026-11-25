@@ -11,7 +11,9 @@
 		PAYMENT_METHODS,
 		TRANSFER_DIRECTIONS,
 		TRANSFER_STATUS_LABELS,
-		TRANSFER_STATUS_VARIANTS
+		TRANSFER_STATUS_VARIANTS,
+		DOC_TYPE_LABELS,
+		PURCHASE_DOC_TYPES
 	} from '#lib/format';
 	import { fromCents, queryString, toCents } from '#lib/allocate';
 	import { Button } from '#lib/components/ui/button';
@@ -38,6 +40,7 @@
 		counterparty_iban: '',
 		reference: '',
 		note: '',
+		doc_number: '',
 		ignored: false
 	});
 	let error = $state('');
@@ -56,6 +59,7 @@
 			counterparty_iban: x.counterparty_iban,
 			reference: x.reference,
 			note: x.note,
+			doc_number: x.doc_number,
 			ignored: x.ignored
 		};
 	}
@@ -221,6 +225,17 @@
 					<div class="space-y-1.5">
 						<Label for="note">Pastaba</Label>
 						<Input id="note" bind:value={form.note} maxlength={200} />
+					</div>
+					<div class="space-y-1.5">
+						<Label for="docnr">
+							Mokėjimo dokumento nr.{#if t.doc_type}
+								<span class="text-muted-foreground">
+									({DOC_TYPE_LABELS[t.doc_type] ??
+										PURCHASE_DOC_TYPES[t.doc_type] ??
+										t.doc_type})</span
+								>{/if}
+						</Label>
+						<Input id="docnr" bind:value={form.doc_number} maxlength={40} />
 					</div>
 					<label class="flex items-center gap-2 text-sm">
 						<input

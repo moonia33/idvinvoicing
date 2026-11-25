@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 
 from apps.tenancy.models import Tenant
@@ -28,6 +29,13 @@ class MoneyTransfer(models.Model):
     class Source(models.TextChoices):
         MANUAL = "manual", "Rankinis"
         IMPORT = "import", "Banko išrašas"
+
+    class DocType(models.TextChoices):
+        NONE = "", "Be dokumento"
+        KPO = "kpo", "Kasos pajamų orderis (KPO)"
+        KIO = "kio", "Kasos išlaidų orderis (KIO)"
+        PPK = "ppk", "Pinigų priėmimo kvitas (PPK)"
+        RECEIPT = "receipt", "Kasos kvitas (čekis)"
 
     class Status(models.TextChoices):
         UNALLOCATED = "unallocated", "Nesudengta"
@@ -58,6 +66,17 @@ class MoneyTransfer(models.Model):
         "Sukurta iš dokumento",
         default=False,
         help_text="1:1 mokėjimas, įvestas sąskaitos/pirkinio puslapyje; sinchronizuojamas su juo.",
+    )
+    doc_type = models.CharField(
+        "Kasos dokumentas", max_length=10, choices=DocType.choices, default="", blank=True
+    )
+    doc_number = models.CharField("Mokėjimo dokumento nr.", max_length=40, blank=True)
+    bank_import = models.ForeignKey(
+        "payments.BankImport",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transfers",
     )
     account_iban = models.CharField("Sąskaita (išrašas)", max_length=34, blank=True)
     external_id = models.CharField("Banko operacijos ID", max_length=100, blank=True)
@@ -105,3 +124,26 @@ class MoneyTransfer(models.Model):
         if allocated < self.amount:
             return self.Status.PARTIAL
         return self.Status.ALLOCATED
+
+
+class BankImport(models.Model):
+    """Vienas įkeltas banko išrašas (ISO 20022 camt.053)."""
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="bank_imports")
+    account_iban = models.CharField(max_length=34)
+    bank_name = models.CharField(max_length=200, blank=True)
+    period_from = models.DateField(null=True, blank=True)
+    period_to = models.DateField(null=True, blank=True)
+    file_name = models.CharField(max_length=255, blank=True)
+    created_count = models.PositiveIntegerField(default=0)
+    duplicate_count = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.account_iban} {self.period_from}–{self.period_to}"
