@@ -161,7 +161,10 @@ def remember_counterparty(transfer: MoneyTransfer, counterparty: Counterparty) -
         MoneyTransfer.objects.filter(pk=transfer.pk).update(counterparty=counterparty)
         transfer.counterparty = counterparty
     iban = transfer.counterparty_iban
-    if iban and not counterparty.iban and len(iban) >= 15 and iban[:2].isalpha():
+    # IBAN įsimenamas tik jei mokėtojas – tas pats asmuo (ne trečioji šalis).
+    payer, owner = _norm_name(transfer.counterparty_name), _norm_name(counterparty.name)
+    same_party = bool(payer) and (payer == owner or set(payer.split()) == set(owner.split()))
+    if iban and same_party and not counterparty.iban and len(iban) >= 15 and iban[:2].isalpha():
         Counterparty.objects.filter(pk=counterparty.pk, iban="").update(iban=iban)
         counterparty.iban = iban
 
