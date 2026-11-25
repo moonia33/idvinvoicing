@@ -352,7 +352,6 @@ def update_transfer(request, transfer_id: int, data: TransferUpdateIn):
         raise HttpError(400, "Pirmiausia panaikinkite sudengimus")
     if data.amount < transfer.allocated_total:
         raise HttpError(400, f"Suma negali būti mažesnė už sudengtą ({transfer.allocated_total})")
-    old_date, old_amount = transfer.date, transfer.amount
     with transaction.atomic():
         for key, value in data.model_dump(exclude={"counterparty_id"}).items():
             setattr(transfer, key, value)
@@ -361,9 +360,12 @@ def update_transfer(request, transfer_id: int, data: TransferUpdateIn):
         transfer.save()
         resync_allocations(transfer)
         entry = transfer.ledger_entry
-        if entry is not None and (transfer.date != old_date or transfer.amount != old_amount):
-            # Žurnalo įrašas atspindi mokėjimą; žurnale pakeista dokumento data išlaikoma.
-            if entry.document_date == old_date:
+        if entry is not None and (
+            entry.paid_date != transfer.date or entry.amount_original != transfer.amount
+        ):
+            # Žurnalo įrašas atspindi mokėjimą (lyginama su pačiu įrašu, ne su ankstesne
+            # mokėjimo būsena); žurnale atskirai pakeista dokumento data išlaikoma.
+            if entry.document_date == entry.paid_date:
                 entry.document_date = transfer.date
             entry.paid_date = transfer.date
             entry.amount_original = transfer.amount
