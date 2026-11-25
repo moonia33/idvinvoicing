@@ -23,6 +23,7 @@ from apps.payments.services import (
     OPEN_INVOICE,
     OPEN_PURCHASE,
     allocate,
+    allocation_doc_number,
     assign_cash_doc,
     delete_transfer,
     import_statements,
@@ -319,8 +320,7 @@ def add_allocation(request, transfer_id: int, data: AllocationIn):
         purchase_id=data.purchase_id,
         exchange_rate=data.exchange_rate,
         doc_type=transfer.doc_type,
-        # Avanso orderio numeris – tik pirmam sudengimui; kiti gauna savo orderius.
-        doc_number="" if transfer.allocated_total > 0 else transfer.doc_number,
+        doc_number=allocation_doc_number(transfer),
     )
     return Status(201, _out(_get(tenant, transfer.id)))
 

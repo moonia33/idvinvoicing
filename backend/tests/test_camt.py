@@ -291,3 +291,42 @@ def test_commit_rejected_after_tenant_switch(api_client, tenant):
     assert r.status_code == 409
     assert not MoneyTransfer.objects.exists()
     assert upload(api_client, commit="true", tenant_id=str(tenant.id)).status_code == 200
+
+
+def test_later_allocations_keep_document_numbers(api_client, tenant):
+    client = Counterparty.objects.create(tenant=tenant, name="UAB Klientas")
+    invs = []
+    for price in (30, 20):
+        inv = Invoice.objects.create(tenant=tenant, client=client)
+        InvoiceLine.objects.create(invoice=inv, description="D", quantity=1, unit_price=price)
+        inv.recalc_total()
+        inv.save(update_fields=["total"])
+        issue_invoice(inv, date(2026, 1, 2))
+        invs.append(inv)
+    base = {"direction": "in", "date": "2026-02-01", "amount": "50.00"}
+
+    def alloc(tid, inv):
+        r = post_json(
+            api_client,
+            f"/api/v1/transfers/{tid}/allocations",
+            {"invoice_id": inv.id, "amount": str(inv.total)},
+        )
+        assert r.status_code == 201, r.content
+        return [a["doc_number"] for a in r.json()["allocations"]]
+
+    bank = post_json(api_client, "/api/v1/transfers", {**base, "doc_number": "PAV-9"}).json()
+    alloc(bank["id"], invs[0])
+    assert alloc(bank["id"], invs[1]) == ["PAV-9", "PAV-9"]
+
+    kpo = post_json(
+        api_client, "/api/v1/transfers", {**base, "method": "cash", "doc_type": "kpo"}
+    ).json()
+    for i in invs:
+        for p in i.payments.all():
+            p.delete()
+        i.recalc_status()
+        i.save(update_fields=["status"])
+    first = alloc(kpo["id"], invs[0])
+    assert first == [kpo["doc_number"]]
+    both = alloc(kpo["id"], invs[1])
+    assert len(set(both)) == 2 and all("," not in n for n in both)

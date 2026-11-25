@@ -125,6 +125,25 @@ def assign_cash_doc(transfer: MoneyTransfer, *, number: bool = True) -> None:
         transfer.doc_number = next_kio_number(transfer.tenant, year)
 
 
+AUTO_NUMBERED = {
+    MoneyTransfer.Direction.IN: ("kpo", "ppk"),
+    MoneyTransfer.Direction.OUT: ("kio",),
+}
+
+
+def allocation_doc_number(transfer: MoneyTransfer) -> str:
+    """Numeris naujam sudengimui. Naudotojo numeris (kvitas, pavedimas) – visiems sudengimams;
+    KPO/PPK/KIO orderis – vienam dokumentui, todėl kartojamas tik jei dar niekur nepanaudotas."""
+    number = transfer.doc_number
+    if transfer.doc_type not in AUTO_NUMBERED[MoneyTransfer.Direction(transfer.direction)]:
+        return number
+    if not number or "," in number:
+        return ""
+    used = Payment.objects.filter(transfer=transfer, doc_number=number).exists()
+    used = used or PurchasePayment.objects.filter(transfer=transfer, doc_number=number).exists()
+    return "" if used else number
+
+
 def allocate(
     transfer: MoneyTransfer,
     amount: Decimal,
