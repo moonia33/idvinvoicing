@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import type { InvoiceSeries, Member, MemberRole, Profile, SmtpSettings } from '#lib/types';
@@ -190,6 +192,11 @@
 		membersMsg = '';
 		try {
 			await api(`/tenants/members/${m.id}`, { method: 'DELETE' });
+			if (m.user_id === auth.user?.id) {
+				await auth.load();
+				goto(auth.currentTenant ? resolve('/') : resolve('/select-tenant'));
+				return;
+			}
 			members = members.filter((x) => x.id !== m.id);
 		} catch (err) {
 			membersMsg = err instanceof Error ? err.message : 'Klaida';
