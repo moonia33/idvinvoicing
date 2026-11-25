@@ -175,6 +175,14 @@ def _amount(el: Element | None) -> Decimal | None:
     return value if value > 0 else None
 
 
+def _decimal(el: Element) -> Decimal | None:
+    try:
+        value = Decimal((el.text or "").strip())
+    except InvalidOperation:
+        return None
+    return value if value > 0 else None
+
+
 def _entries(n: Element, stmt: Statement, seen: dict[str, int]) -> list[Entry]:
     """Viena išrašo eilutė (Ntry). Paketinis mokėjimas (keli TxDtls su sumomis) išskaidomas."""
     status = _text(n, "Sts") or _text(n, "Sts", "Cd")
@@ -200,7 +208,11 @@ def _entries(n: Element, stmt: Statement, seen: dict[str, int]) -> list[Entry]:
     ]
     parts: list[tuple[Element | None, Decimal]] = [(txs[0] if txs else None, amount)]
     if len(txs) > 1:
-        tx_amounts = [_amount(_child(tx, "AmtDtls", "TxAmt")) or _amount(tx) for tx in txs]
+        # Tik sąskaitos valiutos (įrašyta) suma; originalios valiutos sumos netinka.
+        tx_amounts = [
+            _decimal(el) if el is not None and el.get("Ccy", currency) == currency else None
+            for el in (_child(tx, "AmtDtls", "TxAmt", "Amt") for tx in txs)
+        ]
         if all(tx_amounts) and sum(a for a in tx_amounts if a) == amount:
             parts = [(tx, a) for tx, a in zip(txs, tx_amounts, strict=True) if a]
     base_ref = "|".join(p for p in (_text(n, "NtryRef"), _text(n, "AcctSvcrRef")) if p)
