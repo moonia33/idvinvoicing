@@ -2,6 +2,8 @@ import base64
 from io import BytesIO
 
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.middleware.csrf import get_token
 from ninja import File, Router, Schema, Status
 from ninja.errors import HttpError
@@ -62,8 +64,10 @@ def change_password(request, data: PasswordIn):
     user = request.user
     if not user.check_password(data.old_password):
         return Status(400, {"detail": "Neteisingas dabartinis slaptažodis"})
-    if len(data.new_password) < 8:
-        return Status(400, {"detail": "Naujas slaptažodis per trumpas (min. 8 simboliai)"})
+    try:
+        validate_password(data.new_password, user)
+    except ValidationError as exc:
+        return Status(400, {"detail": " ".join(exc.messages)})
     user.set_password(data.new_password)
     user.save(update_fields=["password"])
     update_session_auth_hash(request, user)

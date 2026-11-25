@@ -6,6 +6,7 @@ from django.template.loader import render_to_string
 
 from apps.core.ltnum import lt_amount_words
 from apps.core.numbering import next_document_number
+from apps.core.pdf import render_pdf
 from apps.invoicing.models import Invoice, Payment
 
 
@@ -50,7 +51,6 @@ def cash_doc_ctxs(invoice: Invoice) -> list[dict]:
 
 def generate_invoice_pdf(invoice: Invoice, with_cash_docs: bool = False) -> bytes:
     """Sugeneruoja sąskaitos PDF baitus (WeasyPrint – tik Linux/Docker aplinkoje)."""
-    from weasyprint import HTML  # lazy: Windows dev be GTK bibliotekų
 
     tenant = invoice.tenant
     html = render_to_string(
@@ -61,12 +61,11 @@ def generate_invoice_pdf(invoice: Invoice, with_cash_docs: bool = False) -> byte
             "cash_docs": cash_doc_ctxs(invoice) if with_cash_docs else [],
         },
     )
-    return HTML(string=html).write_pdf()
+    return render_pdf(html)
 
 
 def generate_cash_doc_pdf(payment: Payment) -> bytes:
     """Atskiras KPO/PPK PDF."""
-    from weasyprint import HTML  # lazy
 
     tenant = payment.invoice.tenant
     html = render_to_string(
@@ -77,7 +76,7 @@ def generate_cash_doc_pdf(payment: Payment) -> bytes:
             "profile": getattr(tenant, "profile", None),
         },
     )
-    return HTML(string=html).write_pdf()
+    return render_pdf(html)
 
 
 def next_cash_doc_number(tenant, doc_type: str, year: int) -> str:

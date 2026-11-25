@@ -2,6 +2,7 @@ from django.template.loader import render_to_string
 
 from apps.core.ltnum import lt_amount_words
 from apps.core.numbering import next_document_number
+from apps.core.pdf import render_pdf
 from apps.purchases.models import PurchasePayment
 
 
@@ -13,7 +14,6 @@ def next_kio_number(tenant, year: int) -> str:
 
 def generate_kio_pdf(payment: PurchasePayment) -> bytes:
     """Atskiras KIO (kasos išlaidų orderio) PDF."""
-    from weasyprint import HTML  # lazy: Windows dev be GTK bibliotekų
 
     purchase = payment.purchase
     html = render_to_string(
@@ -25,4 +25,4 @@ def generate_kio_pdf(payment: PurchasePayment) -> bytes:
             "profile": getattr(purchase.tenant, "profile", None),
         },
     )
-    return HTML(string=html).write_pdf()
+    return render_pdf(html)

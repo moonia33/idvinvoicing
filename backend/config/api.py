@@ -1,3 +1,4 @@
+from django.conf import settings
 from ninja import NinjaAPI
 from ninja.security import django_auth
 
@@ -13,6 +14,8 @@ api = NinjaAPI(
     title="IDV Apskaita API",
     urls_namespace="api",
     auth=django_auth,
+    docs_url="/docs" if settings.DEBUG else None,
+    openapi_url="/openapi.json" if settings.DEBUG else None,
 )
 
 api.add_router("", tenancy_router)

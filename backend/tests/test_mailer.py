@@ -8,6 +8,15 @@ from tests.conftest import post_json
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def _public_dns(monkeypatch):
+    import socket
+
+    monkeypatch.setattr(
+        socket, "getaddrinfo", lambda *a, **k: [(socket.AF_INET, 1, 6, "", ("93.184.216.34", 0))]
+    )
+
+
 def locmem_connection(**kwargs):
     return real_get_connection(backend="django.core.mail.backends.locmem.EmailBackend")
 

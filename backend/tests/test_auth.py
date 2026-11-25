@@ -82,13 +82,13 @@ def test_change_password(api_client, user):
     resp = post_json(
         api_client,
         "/api/v1/auth/password",
-        {"old_password": "slaptas123", "new_password": "naujas12345"},
+        {"old_password": "slaptas123", "new_password": "naujas-Slaptazodis-2026"},
     )
     assert resp.status_code == 200
     # sesija išlieka (update_session_auth_hash), nauju slaptažodžiu veikia login
     assert api_client.get("/api/v1/auth/me").status_code == 200
     user.refresh_from_db()
-    assert user.check_password("naujas12345")
+    assert user.check_password("naujas-Slaptazodis-2026")
 
 
 def test_profile_logo_upload_and_delete(api_client, tenant):

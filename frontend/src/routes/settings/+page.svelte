@@ -418,7 +418,7 @@
 							type="password"
 							bind:value={pw.new_password}
 							required
-							minlength={8}
+							minlength={12}
 							autocomplete="new-password"
 						/>
 					</div>

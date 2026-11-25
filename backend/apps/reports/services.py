@@ -16,7 +16,20 @@ def _sheet(wb: Workbook) -> Worksheet:
     return cast(Worksheet, wb.active)
 
 
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _neutralize_formulas(ws):
+    """Tekstas, prasidedantis = + - @, įrašomas kaip tekstas, ne formulė (formula injection)."""
+    for row in ws.iter_rows():
+        for c in row:
+            if isinstance(c.value, str) and c.value.startswith(FORMULA_PREFIXES):
+                c.data_type = "s"
+                c.quotePrefix = True
+
+
 def _autosize(ws):
+    _neutralize_formulas(ws)
     for col in ws.columns:
         width = max(len(str(c.value)) for c in col if c.value is not None)
         ws.column_dimensions[col[0].column_letter].width = min(width + 2, 40)
