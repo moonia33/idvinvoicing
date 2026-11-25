@@ -64,6 +64,14 @@ def sync_document_payment(payment) -> None:
     mokėjimo sudengimo data ir būdas turi sutapti su mokėjimu (pinigų principas)."""
     transfer = payment.transfer
     if transfer is None:
+        # Pvz. nulinis mokėjimas pataisytas į teigiamą – dabar jis turi atsirasti registre.
+        if isinstance(payment, Payment):
+            transfer = transfer_for_invoice_payment(payment)
+        else:
+            transfer = transfer_for_purchase_payment(payment)
+        if transfer is not None:
+            payment.transfer = transfer
+            payment.save(update_fields=["transfer"])
         return
     amount = transfer.allocation_amount(payment)
     if transfer.mirror:

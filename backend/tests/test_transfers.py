@@ -292,6 +292,15 @@ def test_zero_paid_now_purchase_has_no_transfer(api_client, tenant):
     )
     assert r.status_code == 201, r.content
     assert not MoneyTransfer.objects.exists()
+    pay = PurchasePayment.objects.get(purchase_id=r.json()["id"])
+    r = api_client.put(
+        f"/api/v1/purchase-payments/{pay.id}",
+        {"amount_original": "5", "paid_at": "2026-01-06"},
+        content_type="application/json",
+    )
+    assert r.status_code == 200, r.content
+    pay.refresh_from_db()
+    assert pay.transfer is not None and pay.transfer.amount == Decimal("5.00")
 
 
 def test_data_migration_backwards_keeps_payments(tenant, klientas):
